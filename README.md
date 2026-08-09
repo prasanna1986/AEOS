@@ -21,7 +21,9 @@ else runs autonomously.
   - [Running Subcommands via Docker](#running-subcommands-via-docker)
   - [Reaching Local LLM Servers from Docker](#reaching-local-llm-servers-from-docker)
 - [Configuration Reference](#configuration-reference)
+- [Local Models — Ollama & LM Studio](#local-models--ollama--lm-studio)
 - [Model Routing](#model-routing)
+  - [Routing from the CLI](#routing-from-the-cli)
 - [TDD Workflow](#tdd-workflow)
 - [State & Recovery](#state--recovery)
 - [Vertex AI Setup](#vertex-ai-setup)
@@ -76,8 +78,17 @@ pip install -e "c:\Prasanna\antigravity\AEOS"
 aeos init
 ```
 
-This runs an interactive wizard that asks you which provider to use (Ollama, Anthropic, OpenAI, Vertex AI)
-and writes a starter `~/.aeos/config.yaml` for you.
+This runs an interactive wizard that asks you:
+1. Which **provider** to use — Ollama / LM Studio, Anthropic, OpenAI, Vertex AI
+2. The **base URL** (for local models)
+3. The **model name(s)** for inference/planning and coding tasks
+
+It writes a ready-to-use `~/.aeos/config.yaml`.
+
+> **LM Studio users:** Enter your LM Studio URL (e.g. `http://127.0.0.1:1234`) — AEOS
+> automatically detects that LM Studio uses the OpenAI-compatible API and switches to the
+> correct `/v1/chat/completions` endpoint. You will be prompted for the exact model ID
+> shown in LM Studio (e.g. `lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF`).
 
 ### Launch the REPL
 
@@ -135,6 +146,9 @@ Type these anytime — before, during, or after a session:
 | `/log` | Decision log, lessons learned, and failure history |
 | `/providers` | Test connectivity to every configured LLM provider |
 | `/config` | Show the resolved routing table (which model handles which tasks) |
+| `/route` | Show routing table or change provider+model per task/complexity |
+| `/model <name>` | Quick shorthand — set model name across all routes (keeps providers) |
+| `/provider` | Register or remove providers without editing config.yaml |
 | `/resume` | Resume an interrupted session from its saved stage |
 | `/reset` | Archive current session, start fresh with a new objective |
 | `/help` | Show all commands |
@@ -488,6 +502,42 @@ providers:
 
 ---
 
+## Local Models — Ollama & LM Studio
+
+AEOS auto-detects which API protocol your local server speaks:
+
+| Server | Default port | Protocol detected |
+|---|---|---|
+| Ollama | `11434` | Native Ollama API (`/api/chat`) |
+| LM Studio | `1234` | OpenAI-compatible API (`/v1/chat/completions`) |
+| vLLM | `8000` | OpenAI-compatible API (`/v1/chat/completions`) |
+| llama.cpp | any | OpenAI-compatible API (`/v1/chat/completions`) |
+
+**Rule:** if the `base_url` is anything other than `http://localhost:11434`, AEOS assumes
+an OpenAI-compatible server and uses the right endpoint/payload automatically.
+You can also set `openai_compat: true` explicitly in the provider config.
+
+```yaml
+providers:
+  # Native Ollama — auto-detected
+  local_ollama:
+    type: ollama
+    base_url: "http://localhost:11434"
+
+  # LM Studio — auto-detected as OpenAI-compat
+  local_lm_studio:
+    type: ollama
+    base_url: "http://127.0.0.1:1234"
+    # openai_compat: true   ← set automatically, no need to write this
+
+  # vLLM / llama.cpp — auto-detected as OpenAI-compat
+  local_vllm:
+    type: ollama
+    base_url: "http://127.0.0.1:8000"
+```
+
+---
+
 ## Model Routing
 
 Map each task type and complexity to the right provider and model. You define this once in config;
@@ -531,6 +581,95 @@ routing:
 aeos [INITIALIZE] ❯ /config       # in REPL
 aeos config show                   # CLI
 docker compose run --rm aeos aeos config show    # Docker
+```
+
+### Routing from the CLI
+
+You can change routing live from the REPL without editing `config.yaml` manually.
+All changes are written to disk and reloaded immediately.
+
+#### `/route` — granular provider + model control
+
+```
+# Show the full routing table
+/route
+
+# Set a single cell: /route set <task_type> <complexity> <provider> <model>
+/route set coding    high   anthropic_cloud  claude-sonnet-4-5
+/route set inference high   anthropic_cloud  claude-opus-4-5
+/route set inference medium openai_cloud     gpt-4o
+/route set inference low    local_ollama     mistral
+
+# Set all complexity tiers for one task type: /route <task_type> <provider> <model>
+/route coding  local_ollama  codellama:7b
+/route review  anthropic_cloud  claude-opus-4-5
+
+# Set every single route to the same provider + model
+/route local_lm_studio  lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF
+```
+
+Valid `task_type` values: `inference`, `coding`, `planning`, `review`, `verification`  
+Valid `complexity` values: `high`, `medium`, `low`
+
+#### `/model` — quick model swap (keeps providers)
+
+```
+# Show routing table
+/model
+
+# Change only the model name across all routes (providers are unchanged)
+/model mistral
+/model llama3.2:3b
+```
+
+Use `/model` for quick local-only experiments. Use `/route set` when you need
+full provider + model control.
+
+#### `/provider` — register new providers without editing files
+
+```
+# List configured providers
+/provider list
+
+# Register a new Ollama or LM Studio server
+/provider add local_vllm  ollama  http://127.0.0.1:8000
+/provider add lm_studio   ollama  http://127.0.0.1:1234
+
+# Register an OpenAI-compatible cloud endpoint
+/provider add openai_cloud  openai  https://api.openai.com/v1  OPENAI_API_KEY
+/provider add groq          openai  https://api.groq.com/openai/v1  GROQ_API_KEY
+
+# Register Anthropic
+/provider add anthropic_cloud  anthropic  ANTHROPIC_API_KEY
+
+# Remove a provider (warns if routing still references it)
+/provider remove local_vllm
+```
+
+After adding a provider, point routes to it:
+```
+/route set coding medium local_vllm  qwen2.5-coder-7b
+/route set coding low    local_vllm  qwen2.5-coder-7b
+```
+
+#### Full workflow example — mix cloud + local
+
+```
+# Start from a local-only setup and add cloud providers
+/provider add anthropic_cloud  anthropic  ANTHROPIC_API_KEY
+/provider add openai_cloud     openai     https://api.openai.com/v1  OPENAI_API_KEY
+
+# Route heavy tasks to cloud, light tasks to local
+/route set inference high   anthropic_cloud  claude-opus-4-5
+/route set inference medium openai_cloud     gpt-4o
+/route set inference low    local_ollama     mistral
+
+/route set coding high   anthropic_cloud  claude-sonnet-4-5
+/route set coding medium local_ollama     codellama:7b
+/route set coding low    local_ollama     codellama:7b
+
+# Verify
+/config
 ```
 
 ---

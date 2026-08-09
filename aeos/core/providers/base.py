@@ -18,7 +18,10 @@ class CompletionRequest:
     messages: list[Message]
     model: str
     temperature: float = 0.2
-    max_tokens: int = 8192
+    # 2048 is a safe default for local models with 4096-token context windows.
+    # Cloud models (Anthropic, OpenAI) accept much larger values — set max_tokens
+    # in config.yaml or via /route commands to increase for bigger models.
+    max_tokens: int = 2048
     extra: dict[str, Any] = field(default_factory=dict)
 
 

@@ -62,7 +62,18 @@ HELP_TEXT = """
   [yellow]/log[/]           Show decision log, lessons, and failure history
   [yellow]/providers[/]     Test connectivity to all configured providers
   [yellow]/config[/]        Show resolved configuration and routing table
-  [yellow]/model[/]         Change the model used for routing (without re-running init)
+
+  [bold cyan]Routing commands[/]
+  [yellow]/route[/]                               Show full routing table
+  [yellow]/route set <task> <cplx> <prov> <mdl>[/] Set one cell
+  [yellow]/route <task> <prov> <mdl>[/]           Set all complexities for a task
+  [yellow]/route <prov> <mdl>[/]                  Set every cell (same provider+model)
+  [yellow]/model <name>[/]                        Quick: set model name across all routes
+  [yellow]/provider add <key> ollama <url>[/]     Register an Ollama / LM Studio provider
+  [yellow]/provider add <key> openai <url> <env>[/] Register an OpenAI-compat provider
+  [yellow]/provider add <key> anthropic <env>[/]  Register an Anthropic provider
+  [yellow]/provider list[/]                       List configured providers
+
   [yellow]/reset[/]         Archive current session and start fresh
   [yellow]/resume[/]        Resume the previous session from interruption point
   [yellow]/quit[/] [dim]/ /q[/]    Exit AEOS
@@ -74,7 +85,14 @@ HELP_TEXT = """
   [dim]Example:[/] Refactor the database layer to use async SQLAlchemy
 """
 
-SLASH_COMMANDS = {"/help", "/status", "/log", "/providers", "/config", "/model", "/reset", "/resume", "/quit", "/q"}
+SLASH_COMMANDS = {
+    "/help", "/status", "/log", "/providers", "/config",
+    "/route", "/model", "/provider",
+    "/reset", "/resume", "/quit", "/q",
+}
+
+_TASK_TYPES   = ("inference", "coding", "planning", "review", "verification")
+_COMPLEXITIES = ("high", "medium", "low")
 
 
 class AEOSRepl:
@@ -183,8 +201,12 @@ class AEOSRepl:
                 self._print_providers()
             case "/config":
                 self._print_config()
+            case "/route":
+                self._cmd_route(cmd)
             case "/model":
-                self._cmd_set_model(cmd)
+                self._cmd_model_shorthand(cmd)
+            case "/provider":
+                self._cmd_provider(cmd)
             case "/reset":
                 self._reset_session()
             case "/resume":
@@ -427,79 +449,305 @@ class AEOSRepl:
         else:
             console.print("[dim]Reset cancelled.[/]")
 
-    def _cmd_set_model(self, cmd: str) -> None:
-        """
-        /model                  — show current routing models
-        /model <name>           — set ALL route targets to <model-name>
-        /model <name> --coding  — set only coding routes
-        """
+    # ── Routing / provider commands ──────────────────────────
+
+    def _load_raw_config(self):
+        """Load raw YAML dict + the config path. Returns (raw, path) or (None, None)."""
         import yaml
         from aeos.core.config.loader import get_config_path
+        config_path = get_config_path()
+        if config_path is None:
+            console.print("[red]No config file found. Run [bold]aeos init[/] first.[/]")
+            return None, None
+        with open(config_path, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}, config_path
 
+    def _save_and_reload(self, raw: dict, config_path) -> bool:
+        """Write raw YAML and reload self._config. Returns True on success."""
+        import yaml
+        from aeos.core.config.loader import load_config
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(raw, f, default_flow_style=False, allow_unicode=True)
+        try:
+            self._config = load_config(config_path=config_path)
+            return True
+        except Exception as e:
+            console.print(f"[red]Config validation failed:[/] {e}")
+            return False
+
+    def _cmd_route(self, cmd: str) -> None:
+        """
+        /route
+            Show the full routing table.
+
+        /route set <task_type> <complexity> <provider> <model>
+            Set a single routing cell.
+            Example:  /route set coding high anthropic_cloud claude-sonnet-4-5
+
+        /route <task_type> <provider> <model>
+            Set all three complexity tiers for one task type.
+            Example:  /route coding local_ollama codellama:7b
+
+        /route <provider> <model>
+            Set every cell to the same provider + model.
+            Example:  /route local_ollama mistral
+        """
         if self._config is None:
             console.print("[yellow]No config loaded.[/]")
             return
 
         parts = cmd.strip().split()
-        if len(parts) == 1:  # just /model — show current
+        # strip the command word itself
+        args = parts[1:]  # everything after '/route'
+
+        # ── /route  (no args) ────────────────────────────────
+        if not args:
+            self._print_config()
+            console.print(Panel(
+                "[bold]Usage examples:[/]\n\n"
+                "  [yellow]/route set coding high anthropic_cloud claude-opus-4-5[/]\n"
+                "    → Set coding/high to anthropic_cloud / claude-opus-4-5\n\n"
+                "  [yellow]/route coding local_ollama codellama:7b[/]\n"
+                "    → Set all complexity tiers for coding\n\n"
+                "  [yellow]/route local_ollama mistral[/]\n"
+                "    → Set every route to local_ollama / mistral",
+                title="/route help", border_style="dim", expand=False,
+            ))
+            return
+
+        raw, config_path = self._load_raw_config()
+        if raw is None:
+            return
+        routing = raw.setdefault("routing", {})
+
+        # ── /route set <task> <cplx> <provider> <model> ─────
+        if args[0] == "set":
+            if len(args) != 5:
+                console.print(
+                    "[red]Usage:[/] /route set <task_type> <complexity> <provider> <model>\n"
+                    f"  task_type:  {', '.join(_TASK_TYPES)}\n"
+                    f"  complexity: high | medium | low"
+                )
+                return
+            _, task, cplx, provider, model = args
+            if task not in _TASK_TYPES:
+                console.print(f"[red]Unknown task type:[/] {task}. Choose from: {', '.join(_TASK_TYPES)}")
+                return
+            if cplx not in _COMPLEXITIES:
+                console.print(f"[red]Unknown complexity:[/] {cplx}. Choose from: high, medium, low")
+                return
+            routing.setdefault(task, {})[cplx] = {"provider": provider, "model": model}
+            if self._save_and_reload(raw, config_path):
+                console.print(
+                    f"[green]✓[/] [cyan]{task}[/]/[cyan]{cplx}[/] "
+                    f"→ [bold]{provider}[/] / [bold]{model}[/]"
+                )
+            return
+
+        # ── /route <task_type> <provider> <model> ────────────
+        if len(args) == 3 and args[0] in _TASK_TYPES:
+            task, provider, model = args
+            routing.setdefault(task, {})
+            for cplx in _COMPLEXITIES:
+                routing[task][cplx] = {"provider": provider, "model": model}
+            if self._save_and_reload(raw, config_path):
+                console.print(
+                    f"[green]✓[/] All complexities for [cyan]{task}[/] "
+                    f"→ [bold]{provider}[/] / [bold]{model}[/]"
+                )
+            return
+
+        # ── /route <provider> <model>  (set everything) ──────
+        if len(args) == 2:
+            provider, model = args
+            updated = []
+            for tt in list(routing.keys()) or list(_TASK_TYPES[:2]):
+                routing.setdefault(tt, {})
+                for cplx in _COMPLEXITIES:
+                    routing[tt][cplx] = {"provider": provider, "model": model}
+                updated.append(tt)
+            if self._save_and_reload(raw, config_path):
+                console.print(
+                    f"[green]✓[/] All routes → [bold]{provider}[/] / [bold]{model}[/] "
+                    f"({', '.join(updated)})"
+                )
+            return
+
+        console.print("[red]Unrecognised /route syntax.[/] Type [yellow]/help[/] for examples.")
+
+    def _cmd_model_shorthand(self, cmd: str) -> None:
+        """
+        /model              — show routing table
+        /model <name>       — change the model name across ALL routes
+                              (provider keys are preserved)
+        """
+        if self._config is None:
+            console.print("[yellow]No config loaded.[/]")
+            return
+
+        parts = cmd.strip().split()
+        if len(parts) == 1:
             self._print_config()
             console.print(
-                "[dim]Usage:[/] [yellow]/model <model-name>[/]  — set all routes\n"
-                "         [yellow]/model <model-name> --coding[/]  — coding routes only\n"
-                "         [yellow]/model <model-name> --inference[/]  — inference routes only"
+                "[dim]Tip: use [yellow]/route[/] for granular control over provider + model per task/complexity.[/]"
             )
             return
 
         model_name = parts[1]
-        filter_type = None
-        if "--coding" in parts:
-            filter_type = "coding"
-        elif "--inference" in parts:
-            filter_type = "inference"
-        elif "--planning" in parts:
-            filter_type = "planning"
-        elif "--review" in parts:
-            filter_type = "review"
-        elif "--verification" in parts:
-            filter_type = "verification"
-
-        # Find and update the config file
-        config_path = get_config_path()
-        if config_path is None:
-            console.print("[red]Cannot find config file to update.[/]")
+        raw, config_path = self._load_raw_config()
+        if raw is None:
             return
 
-        with open(config_path, encoding="utf-8") as f:
-            raw = yaml.safe_load(f) or {}
-
         routing = raw.get("routing", {})
-        task_types = [filter_type] if filter_type else list(routing.keys())
-
-        # Find the first provider key to preserve it
-        providers_updated = 0
-        for tt in task_types:
-            if tt not in routing:
-                routing[tt] = {}
-            for cplx in ("high", "medium", "low"):
-                if cplx not in routing[tt]:
-                    routing[tt][cplx] = {}
-                existing_provider = routing[tt][cplx].get("provider", "local_ollama")
-                routing[tt][cplx] = {"provider": existing_provider, "model": model_name}
-                providers_updated += 1
-
-        raw["routing"] = routing
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(raw, f, default_flow_style=False, allow_unicode=True)
-
-        # Reload config
-        from aeos.core.config.loader import load_config
-        try:
-            self._config = load_config(config_path=config_path)
-            scope = filter_type or "all task types"
+        updated = 0
+        for tt, tiers in routing.items():
+            for cplx in _COMPLEXITIES:
+                if cplx in tiers:
+                    tiers[cplx]["model"] = model_name
+                    updated += 1
+        if self._save_and_reload(raw, config_path):
             console.print(
-                f"[green]✓[/] Updated [bold]{providers_updated}[/] routes for "
-                f"[cyan]{scope}[/] → model [bold]{model_name}[/]\n"
-                f"[dim]Config saved to {config_path}[/]"
+                f"[green]✓[/] Updated [bold]{updated}[/] routes → model [bold]{model_name}[/]\n"
+                f"[dim](Providers unchanged. Use /route set to change provider too.)[/]"
             )
-        except Exception as e:
-            console.print(f"[red]Config reload failed:[/] {e}")
+
+    def _cmd_provider(self, cmd: str) -> None:
+        """
+        /provider list
+            List all configured providers.
+
+        /provider add <key> ollama <base_url>
+            Register an Ollama or LM Studio provider.
+            Example:  /provider add local_vllm ollama http://127.0.0.1:8000
+
+        /provider add <key> openai <base_url> <api_key_env>
+            Register an OpenAI-compatible provider.
+            Example:  /provider add openai_cloud openai https://api.openai.com/v1 OPENAI_API_KEY
+
+        /provider add <key> anthropic <api_key_env>
+            Register an Anthropic provider.
+            Example:  /provider add anthropic_cloud anthropic ANTHROPIC_API_KEY
+
+        /provider remove <key>
+            Remove a provider (also removes routing entries that reference it).
+        """
+        if self._config is None:
+            console.print("[yellow]No config loaded.[/]")
+            return
+
+        parts = cmd.strip().split()
+        args = parts[1:]
+
+        if not args or args[0] == "list":
+            self._print_providers()
+            return
+
+        if args[0] == "add":
+            self._cmd_provider_add(args[1:])
+            return
+
+        if args[0] == "remove":
+            if len(args) != 2:
+                console.print("[red]Usage:[/] /provider remove <key>")
+                return
+            self._cmd_provider_remove(args[1])
+            return
+
+        console.print("[red]Unknown subcommand.[/] Use: list | add | remove")
+
+    def _cmd_provider_add(self, args: list[str]) -> None:
+        """Handle /provider add ..."""
+        from rich.table import Table
+        from rich import box as rbox
+
+        if len(args) < 3:
+            console.print(
+                "[red]Usage:[/]\n"
+                "  /provider add <key> ollama <base_url>\n"
+                "  /provider add <key> openai <base_url> <api_key_env>\n"
+                "  /provider add <key> anthropic <api_key_env>"
+            )
+            return
+
+        key, ptype = args[0], args[1].lower()
+        raw, config_path = self._load_raw_config()
+        if raw is None:
+            return
+
+        providers = raw.setdefault("providers", {})
+        if key in providers:
+            console.print(f"[yellow]Provider '{key}' already exists — overwriting.[/]")
+
+        if ptype == "ollama":
+            if len(args) < 3:
+                console.print("[red]Usage:[/] /provider add <key> ollama <base_url>")
+                return
+            base_url = args[2]
+            is_compat = base_url.rstrip("/") != "http://localhost:11434"
+            entry: dict = {"type": "ollama", "base_url": base_url}
+            if is_compat:
+                entry["openai_compat"] = True
+            providers[key] = entry
+            note = "[dim](OpenAI-compat mode auto-enabled)[/]" if is_compat else ""
+
+        elif ptype in ("openai", "openai_compat"):
+            if len(args) < 4:
+                console.print("[red]Usage:[/] /provider add <key> openai <base_url> <api_key_env>")
+                return
+            base_url, env_var = args[2], args[3]
+            providers[key] = {"type": "openai", "base_url": base_url, "api_key_env": env_var}
+            note = f"[dim](API key from env: {env_var})[/]"
+
+        elif ptype == "anthropic":
+            if len(args) < 3:
+                console.print("[red]Usage:[/] /provider add <key> anthropic <api_key_env>")
+                return
+            env_var = args[2]
+            providers[key] = {"type": "anthropic", "api_key_env": env_var}
+            note = f"[dim](API key from env: {env_var})[/]"
+
+        elif ptype == "vertex_ai":
+            if len(args) < 3:
+                console.print("[red]Usage:[/] /provider add <key> vertex_ai <gcp_project>")
+                return
+            project = args[2]
+            location = args[3] if len(args) > 3 else "us-central1"
+            providers[key] = {"type": "vertex_ai", "project": project, "location": location}
+            note = f"[dim](GCP project: {project}, location: {location})[/]"
+
+        else:
+            console.print(f"[red]Unknown provider type:[/] {ptype}. Choose: ollama | openai | anthropic | vertex_ai")
+            return
+
+        if self._save_and_reload(raw, config_path):
+            console.print(f"[green]✓[/] Provider [bold]{key}[/] ({ptype}) registered. {note}")
+            console.print(
+                f"[dim]Now point routing to it with:[/] "
+                f"[yellow]/route <task_type> {key} <model-name>[/]"
+            )
+
+    def _cmd_provider_remove(self, key: str) -> None:
+        """Handle /provider remove <key>."""
+        raw, config_path = self._load_raw_config()
+        if raw is None:
+            return
+        providers = raw.get("providers", {})
+        if key not in providers:
+            console.print(f"[yellow]Provider '{key}' not found.[/]")
+            return
+        del providers[key]
+        # Warn about dangling routing references
+        routing = raw.get("routing", {})
+        dangling = []
+        for tt, tiers in routing.items():
+            for cplx, target in tiers.items():
+                if isinstance(target, dict) and target.get("provider") == key:
+                    dangling.append(f"{tt}/{cplx}")
+        if dangling:
+            console.print(
+                f"[yellow]⚠ The following routing entries still reference '{key}':[/] "
+                + ", ".join(dangling)
+                + "\n[dim]Update them with /route set before running.[/]"
+            )
+        if self._save_and_reload(raw, config_path):
+            console.print(f"[green]✓[/] Provider [bold]{key}[/] removed.")

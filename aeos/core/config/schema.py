@@ -33,8 +33,16 @@ class ProviderConfig(BaseModel):
     project: str | None = None
     location: str = "us-central1"
 
-    # Ollama
+    # Ollama / LM Studio
     models: list[str] = Field(default_factory=list)
+    openai_compat: bool | None = None   # None = auto-detect from base_url
+
+    # Token budget — set these to match your local model's context window.
+    # AEOS will cap max_tokens to this value automatically.
+    #   context_window: 4096   ← total tokens (prompt + completion)
+    #   max_tokens:     2048   ← hard cap on completion tokens sent to this provider
+    context_window: int | None = None   # total context window of the model
+    max_tokens: int | None = None       # override the per-request max_tokens cap
 
     # Extra kwargs passed through to the SDK
     extra: dict[str, Any] = Field(default_factory=dict)

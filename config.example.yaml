@@ -13,45 +13,55 @@ providers:
 
   # ── LOCAL: Ollama on this machine ─────────────────────────
   local_ollama:
-    type: ollama                               # Ollama native /api/chat protocol
-    base_url: "http://localhost:11434"
+    type: ollama
+    base_url: "http://localhost:11434"   # default Ollama port → native /api/chat protocol
     models:
       - mistral
       - codellama:7b
       - phi3:mini
       - llama3.1:8b
+    # Optional: declare the model's context window so AEOS never requests
+    # more output tokens than the window allows.  Highly recommended for
+    # any local model with a 4096-token context.
+    context_window: 4096   # total tokens available (prompt + completion)
+    max_tokens: 1500       # hard cap on completion tokens; leave ~2500 for prompts
+
+  # ── LOCAL: LM Studio ──────────────────────────────────────
+  # LM Studio exposes an OpenAI-compatible API on port 1234.
+  # Use type: ollama with the LM Studio base_url — AEOS automatically
+  # switches to /v1/chat/completions (OpenAI-compat mode) whenever
+  # the base_url is not the default Ollama localhost:11434.
+  local_lm_studio:
+    type: ollama
+    base_url: "http://127.0.0.1:1234"   # LM Studio default port
+    # openai_compat: true               # set automatically — no need to write this
+    context_window: 4096
+    max_tokens: 1500
+
+  # ── LOCAL: vLLM / llama.cpp / text-gen-webui ──────────────
+  # Same auto-detection: any non-default Ollama URL → OpenAI-compat mode.
+  local_vllm:
+    type: ollama
+    base_url: "http://localhost:8000"    # vLLM default port
+    context_window: 8192                 # adjust for your model
+    max_tokens: 4096
 
   # ── LOCAL: Ollama on a DIFFERENT machine on the network ───
   team_ollama:
     type: ollama
-    base_url: "http://192.168.1.100:11434"     # just change the host
-
-  # ── LOCAL: vLLM / LM Studio / llama.cpp / text-gen-webui ─
-  # These expose an OpenAI-compatible API — use type: openai
-  # and point base_url at any host:port
-  local_vllm:
-    type: openai                               # OpenAI protocol
-    base_url: "http://localhost:8000/v1"       # local vLLM
-    # api_key_env: optional — omit if not required by the server
-
-  remote_vllm:
-    type: openai
-    base_url: "http://192.168.1.50:8000/v1"   # vLLM on a different machine
-
-  lm_studio_local:
-    type: openai
-    base_url: "http://localhost:1234/v1"       # LM Studio default port
+    base_url: "http://192.168.1.100:11434"
+    context_window: 4096
+    max_tokens: 1500
 
   # ── LOCAL: Anthropic-compatible server (e.g. LiteLLM proxy) ──
-  # Any server that speaks the Anthropic Messages API
   local_anthropic_compat:
-    type: anthropic                            # Anthropic protocol
-    base_url: "http://localhost:8001"          # local Anthropic-compatible server
-    api_key_env: LOCAL_ANTHROPIC_KEY           # whatever the server expects
+    type: anthropic
+    base_url: "http://localhost:8001"
+    api_key_env: LOCAL_ANTHROPIC_KEY
 
   remote_litellm_proxy:
     type: anthropic
-    base_url: "http://my-inference-box:4000"   # LiteLLM proxy on another host
+    base_url: "http://my-inference-box:4000"
     api_key_env: LITELLM_API_KEY
 
   # ── CLOUD: OpenAI ─────────────────────────────────────────
@@ -60,12 +70,14 @@ providers:
     base_url: "https://api.openai.com/v1"
     api_key_env: OPENAI_API_KEY
     timeout: 120
+    max_tokens: 8192   # cloud models support large outputs
 
   # ── CLOUD: OpenAI-compatible (Groq, Together, Fireworks, etc.) ──
   groq_cloud:
     type: openai
     base_url: "https://api.groq.com/openai/v1"
     api_key_env: GROQ_API_KEY
+    max_tokens: 4096
 
   together_cloud:
     type: openai
@@ -78,12 +90,13 @@ providers:
     # base_url: omit to use default api.anthropic.com
     api_key_env: ANTHROPIC_API_KEY
     timeout: 180
+    max_tokens: 8192
 
   # ── CLOUD: Google Vertex AI ───────────────────────────────
   vertex_ai:
     type: vertex_ai
-    project: my-gcp-project-id                # GCP project ID
-    location: us-central1                     # region
+    project: my-gcp-project-id
+    location: us-central1
     # Auth: Application Default Credentials (ADC)
     # Run: gcloud auth application-default login
 
@@ -163,24 +176,11 @@ routing:
 # PROJECT DEFAULTS
 # ────────────────────────────────────────────────────────────
 project:
-  # Directory for state, artifacts, and logs (relative to project root)
   workspace_dir: ".aeos"
-
-  # Maximum retry attempts per task before escalating
   max_retries: 3
-
-  # Pause and ask user on critical decisions (recommended: true)
   ask_on_critical: true
-
-  # Maximum lines of code per atomic task (tasks larger than this
-  # are further decomposed before being sent to an SLM)
   decompose_threshold: 300
-
-  # Automatically activate dynamic workflow stages when relevant
-  # artifacts are discovered (PRD, OpenAPI spec, Figma, etc.)
   auto_activate_stages: true
-
-  # Default git author for autonomous commits
   git_author_name: "AEOS Autonomous Agent"
   git_author_email: "aeos@localhost"
 
@@ -188,5 +188,29 @@ project:
 # LOGGING
 # ────────────────────────────────────────────────────────────
 logging:
-  level: INFO          # DEBUG | INFO | WARNING | ERROR
+  level: INFO
   file: ".aeos/aeos.log"
+
+
+# ============================================================
+# PURE LOCAL SETUP EXAMPLE
+# Uncomment and adapt this block if you only use local models.
+# Delete or comment out the routing section above first.
+# ============================================================
+
+# providers:
+#   local_lm_studio:
+#     type: ollama
+#     base_url: "http://127.0.0.1:1234"   # LM Studio
+#     context_window: 4096                 # your model's total context
+#     max_tokens: 1500                     # cap completions to avoid Channel Error
+#
+# routing:
+#   inference:
+#     high:   { provider: local_lm_studio, model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" }
+#     medium: { provider: local_lm_studio, model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" }
+#     low:    { provider: local_lm_studio, model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" }
+#   coding:
+#     high:   { provider: local_lm_studio, model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" }
+#     medium: { provider: local_lm_studio, model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" }
+#     low:    { provider: local_lm_studio, model: "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF" }
