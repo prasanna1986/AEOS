@@ -26,7 +26,7 @@ class TestCompletionRequest:
             model="gpt-test",
         )
         assert req.temperature == 0.2
-        assert req.max_tokens == 8192
+        assert req.max_tokens == 2048
         assert req.extra == {}
 
 

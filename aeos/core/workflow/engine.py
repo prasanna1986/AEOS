@@ -73,6 +73,7 @@ class WorkflowEngine:
         }
         self._planner = PlannerAgent(self._router, ctx)
         self._reviewer = ReviewerAgent(self._router, ctx)
+        self._stage_retries: dict[str, int] = {}
 
     # ─────────────────────────────────────────────────────────
     # Main execution loop
@@ -197,8 +198,57 @@ class WorkflowEngine:
         console.print(f"  Found {len(files)} files, {len(discovered)} relevant artifacts")
         return WorkflowStage.UNDERSTAND_REQUIREMENTS
 
+    def _resolve_review_outcome(
+        self, stage: WorkflowStage, review: dict, default_next: WorkflowStage
+    ) -> WorkflowStage:
+        """
+        Evaluate a review outcome, applying a circuit breaker if the reviewer
+        repeatedly requests REVISE/RETRY/REPLAN without reaching PASS.
+        """
+        outcome = review.get("outcome_enum", ReviewOutcome.PASS)
+        summary = review.get("summary", "")
+        issues = review.get("issues", [])
+
+        # Store review details in state context
+        self._state.context[f"{stage.value}_last_review"] = {
+            "outcome": outcome.value,
+            "summary": summary,
+            "issues": issues,
+        }
+
+        if outcome == ReviewOutcome.PASS:
+            self._stage_retries[stage.value] = 0
+            console.print(f"  {stage.value} review: [bold green]PASS[/] — {summary}")
+            return default_next
+
+        # Non-PASS outcome: increment retry count for this stage
+        count = self._stage_retries.get(stage.value, 0) + 1
+        self._stage_retries[stage.value] = count
+        max_retries = max(1, self._config.project.max_retries - 1)
+
+        if count >= max_retries:
+            console.print(
+                f"  {stage.value} review: [bold yellow]{outcome.value.upper()}[/] (attempt {count}/{max_retries}).\n"
+                f"  [bold yellow]⚠ Max revisions reached for {stage.value} — proceeding to next stage with recorded notes.[/]"
+            )
+            self._state.decisions.append(
+                DecisionRecord(
+                    decision=f"Proceeding past {stage.value} after {count} revision attempts",
+                    evidence=f"Reviewer notes: {summary}. Issues: {issues}",
+                )
+            )
+            self._sm.save(self._state)
+            return default_next
+
+        console.print(f"  {stage.value} review: [bold yellow]{outcome.value.upper()}[/] (attempt {count}/{max_retries}) — {summary}")
+        return get_next_stage(stage, outcome)
+
     async def _stage_understand_requirements(self) -> WorkflowStage:
         console.print("  Understanding requirements...")
+        last_rev = self._state.context.get(f"{WorkflowStage.REVIEW_REQUIREMENTS.value}_last_review")
+        if last_rev and last_rev.get("summary"):
+            console.print(f"  [dim]Incorporating review feedback: {last_rev.get('summary')[:80]}[/]")
+            self._state.context["requirements_feedback"] = last_rev.get("summary")
         self._state.context["requirements_understood"] = True
         self._sm.save(self._state)
         return WorkflowStage.REVIEW_REQUIREMENTS
@@ -210,15 +260,14 @@ class WorkflowEngine:
             f"Context: {json.dumps(self._state.context, default=str, indent=2)[:2000]}"
         )
         review = await self._reviewer.review(req_summary, "requirements", "review_requirements")
-        outcome = review["outcome_enum"]
-        console.print(f"  Requirements review: [bold]{outcome.value.upper()}[/] — {review.get('summary', '')}")
-        return get_next_stage(WorkflowStage.REVIEW_REQUIREMENTS, outcome)
+        return self._resolve_review_outcome(WorkflowStage.REVIEW_REQUIREMENTS, review, WorkflowStage.PROJECT_PLANNING)
 
     async def _stage_project_planning(self) -> WorkflowStage:
         console.print("  Generating project plan...")
         context_str = (
             f"Project tree:\n{self._state.context.get('project_tree', '')}\n"
-            f"Artifacts: {self._state.discovered_artifacts}"
+            f"Artifacts: {self._state.discovered_artifacts}\n"
+            f"Requirements feedback: {self._state.context.get('requirements_feedback', '')}"
         )
         plan = await self._planner.plan(self._state.objective, context=context_str)
         self._state.context["project_plan"] = plan
@@ -231,9 +280,7 @@ class WorkflowEngine:
         review = await self._reviewer.review(
             json.dumps(plan, indent=2), "plan", "review_project_plan"
         )
-        outcome = review["outcome_enum"]
-        console.print(f"  Plan review: [bold]{outcome.value.upper()}[/] — {review.get('summary', '')}")
-        return get_next_stage(WorkflowStage.REVIEW_PROJECT_PLAN, outcome)
+        return self._resolve_review_outcome(WorkflowStage.REVIEW_PROJECT_PLAN, review, WorkflowStage.PROJECT_DECOMPOSITION)
 
     async def _stage_project_decomposition(self) -> WorkflowStage:
         console.print("  Decomposing tasks...")
@@ -270,9 +317,7 @@ class WorkflowEngine:
             indent=2,
         )
         review = await self._reviewer.review(tasks_summary, "plan", "review_decomposition")
-        outcome = review["outcome_enum"]
-        console.print(f"  Decomposition review: [bold]{outcome.value.upper()}[/]")
-        return get_next_stage(WorkflowStage.REVIEW_DECOMPOSITION, outcome)
+        return self._resolve_review_outcome(WorkflowStage.REVIEW_DECOMPOSITION, review, WorkflowStage.TASK_QUEUE)
 
     async def _stage_task_queue(self) -> WorkflowStage:
         # Sort task queue by priority (descending)
@@ -334,9 +379,7 @@ class WorkflowEngine:
             f" / {len(self._state.tasks)}"
         )
         review = await self._reviewer.review(summary, "implementation", "system_review")
-        outcome = review["outcome_enum"]
-        console.print(f"  System review: [bold]{outcome.value.upper()}[/]")
-        return get_next_stage(WorkflowStage.SYSTEM_REVIEW, outcome)
+        return self._resolve_review_outcome(WorkflowStage.SYSTEM_REVIEW, review, WorkflowStage.FINAL_VERIFICATION)
 
     async def _stage_final_verification(self) -> WorkflowStage:
         console.print("  Final verification...")

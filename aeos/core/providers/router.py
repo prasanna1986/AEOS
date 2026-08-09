@@ -50,14 +50,39 @@ class ModelRouter:
 
     def _effective_max_tokens(self, provider_key: str, requested: int) -> int:
         """
-        Return the actual max_tokens to send, capping by the provider's declared
-        max_tokens limit (if set in config).  This prevents local models with small
-        context windows (e.g. 4096) from receiving a request for 8192 output tokens
-        which causes an immediate Channel Error in LM Studio / llama.cpp.
+        Resolve the actual max_tokens value to send in the API request.
+
+        Priority (highest wins):
+          1. provider.max_tokens  — explicit cap set in config.yaml
+          2. provider.context_window // 2 — derived cap when only context_window
+                                             is declared (reserves ~half the window
+                                             for the prompt; safe for most models)
+          3. requested            — the caller's value, unchanged
+
+        Examples
+        --------
+        context_window=4096, max_tokens unset
+            → effective = min(requested, 4096 // 2) = min(requested, 2048)
+
+        context_window=4096, max_tokens=1500
+            → effective = min(requested, 1500)        (max_tokens wins)
+
+        neither set
+            → effective = requested                   (no cap applied)
         """
         prov_cfg = self._config.providers.get(provider_key)
-        if prov_cfg and prov_cfg.max_tokens is not None:
+        if prov_cfg is None:
+            return requested
+
+        if prov_cfg.max_tokens is not None:
+            # Explicit cap — always respected
             return min(requested, prov_cfg.max_tokens)
+
+        if prov_cfg.context_window is not None:
+            # Derived cap: reserve half the window for the prompt
+            derived = prov_cfg.context_window // 2
+            return min(requested, derived)
+
         return requested
 
     async def complete(

@@ -504,39 +504,94 @@ providers:
 
 ## Local Models — Ollama & LM Studio
 
-AEOS auto-detects which API protocol your local server speaks:
+### API Protocol Auto-Detection
 
-| Server | Default port | Protocol detected |
+AEOS auto-detects the API protocol from the `base_url`:
+
+| Server | Default port | Protocol auto-selected |
 |---|---|---|
-| Ollama | `11434` | Native Ollama API (`/api/chat`) |
-| LM Studio | `1234` | OpenAI-compatible API (`/v1/chat/completions`) |
-| vLLM | `8000` | OpenAI-compatible API (`/v1/chat/completions`) |
-| llama.cpp | any | OpenAI-compatible API (`/v1/chat/completions`) |
+| Ollama | `11434` | Native Ollama API (`POST /api/chat`) |
+| LM Studio | `1234` | OpenAI-compatible (`POST /v1/chat/completions`) |
+| vLLM | `8000` | OpenAI-compatible (`POST /v1/chat/completions`) |
+| llama.cpp server | any | OpenAI-compatible (`POST /v1/chat/completions`) |
 
-**Rule:** if the `base_url` is anything other than `http://localhost:11434`, AEOS assumes
-an OpenAI-compatible server and uses the right endpoint/payload automatically.
-You can also set `openai_compat: true` explicitly in the provider config.
+Any `base_url` other than `http://localhost:11434` is automatically treated as an OpenAI-compatible server. Override explicitly with `openai_compat: true/false` if needed.
+
+---
+
+### Token Budget — `context_window` vs `max_tokens`
+
+Local models have a **fixed total context window**: the sum of prompt tokens and completion tokens cannot exceed it. If AEOS asks for more completion tokens than the window can accommodate, the server rejects the request immediately:
+
+```
+[ERROR] Channel Error          ← LM Studio / llama.cpp
+RetryError[HTTPStatusError]    ← the AEOS side of the same error
+```
+
+Two config fields control this. They serve **different purposes**:
+
+| Field | What it represents | When to use |
+|---|---|---|
+| `context_window` | **Total** token capacity (prompt + completion combined) | Simple — just tell AEOS the model's limit, it does the math |
+| `max_tokens` | Hard cap on **completion tokens only** sent in the request | Advanced — when you need exact control over the output budget |
+
+**Resolution priority (highest wins):**
+
+```
+1. provider.max_tokens is set
+       → cap = min(requested, max_tokens)
+
+2. provider.context_window is set, max_tokens is not
+       → cap = min(requested, context_window / 2)
+          (reserves the other half of the window for the prompt)
+
+3. Neither is set
+       → cap = min(requested, 2048)   [AEOS built-in safe default]
+```
+
+**Worked examples:**
+
+```
+context_window=4096, max_tokens not set
+  → effective cap = 4096 / 2 = 2048
+  → safe for prompts up to ~2000 tokens
+
+context_window=4096, max_tokens=1500
+  → effective cap = 1500   (max_tokens wins)
+  → more headroom for large system prompts
+
+context_window=32768, max_tokens not set   (← e.g. Llama 3.1 extended)
+  → effective cap = 16384
+  → generous; you may want an explicit max_tokens anyway
+```
+
+**Config examples:**
 
 ```yaml
 providers:
-  # Native Ollama — auto-detected
-  local_ollama:
-    type: ollama
-    base_url: "http://localhost:11434"
 
-  # LM Studio — auto-detected as OpenAI-compat
+  # Simplest — just declare the model's total context, AEOS handles the rest
   local_lm_studio:
     type: ollama
     base_url: "http://127.0.0.1:1234"
-    # openai_compat: true   ← set automatically, no need to write this
+    context_window: 4096          # ← AEOS will cap completions at 2048
 
-  # vLLM / llama.cpp — auto-detected as OpenAI-compat
-  local_vllm:
+  # Advanced — override when your system prompts are unusually large
+  local_lm_studio:
     type: ollama
-    base_url: "http://127.0.0.1:8000"
+    base_url: "http://127.0.0.1:1234"
+    context_window: 4096
+    max_tokens: 1200              # explicit cap; max_tokens always wins
+
+  # Native Ollama — auto-detected from default port
+  local_ollama:
+    type: ollama
+    base_url: "http://localhost:11434"
+    context_window: 4096
 ```
 
 ---
+
 
 ## Model Routing
 
