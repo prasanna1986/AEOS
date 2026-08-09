@@ -193,11 +193,18 @@ class TaskExecutor:
             )
             task.review_outcome = impl_review["outcome_enum"]
 
-            # ── 8. Mark Complete ──────────────────────────────────────────
+            # ── 8. Mark Complete or Auto-Decompose on Failure/REPLAN ─────
             if task.verification_passed and task.review_outcome == ReviewOutcome.PASS:
                 task.status = TaskStatus.COMPLETED
                 task.current_stage = "complete"
                 console.print(f"  [bold green]✓ Task complete: {task.title}[/]")
+            elif task.review_outcome in (ReviewOutcome.REPLAN, ReviewOutcome.REVISE) or not task.verification_passed:
+                console.print(f"  [yellow]Task needs replanning — auto-decomposing into smaller subtasks...[/]")
+                task = await self._force_decompose(task)
+                if task.status != TaskStatus.BLOCKED:
+                    task.status = TaskStatus.FAILED
+                    task.current_stage = "failed"
+                    console.print(f"  [red]✗ Task failed: {task.title}[/]")
             else:
                 task.status = TaskStatus.FAILED
                 task.current_stage = "failed"
@@ -246,4 +253,32 @@ class TaskExecutor:
 
                 task.status = TaskStatus.BLOCKED  # waits for children
                 self._sm.save(self._state)
+        return task
+
+    async def _force_decompose(self, task: TaskRecord) -> TaskRecord:
+        """Force decomposition of a task that failed verification/review into smaller, lower-complexity subtasks."""
+        threshold = self._config.project.decompose_threshold
+        result = await self._decomposer.decompose(task, target_loc=max(50, threshold // 2))
+        subtasks = result.get("subtasks", [])
+        if subtasks:
+            console.print(f"  [yellow]→ Auto-decomposed task '{task.title[:40]}' into {len(subtasks)} subtasks[/]")
+            from uuid import uuid4
+            for sub in subtasks:
+                sub_record = TaskRecord(
+                    id=str(uuid4())[:8],
+                    title=sub["title"],
+                    description=sub.get("description", ""),
+                    objective=sub.get("objective", ""),
+                    parent_id=task.id,
+                    complexity="low",
+                    task_type=sub.get("task_type", "coding"),
+                    priority=sub.get("priority", 50),
+                    metadata={"tdd_phase": sub.get("tdd_phase", "")},
+                )
+                task.child_ids.append(sub_record.id)
+                self._state.tasks[sub_record.id] = sub_record
+                self._state.task_queue_order.insert(0, sub_record.id)
+
+            task.status = TaskStatus.BLOCKED
+            self._sm.save(self._state)
         return task
