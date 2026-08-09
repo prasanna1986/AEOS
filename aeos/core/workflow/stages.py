@@ -1,0 +1,81 @@
+"""Workflow stage definitions — all lifecycle stages as an enum."""
+
+from __future__ import annotations
+
+from enum import Enum
+
+
+class WorkflowStage(str, Enum):
+    # ── Core lifecycle ──────────────────────────────────────
+    INITIALIZE = "INITIALIZE"
+    DISCOVER_CONTEXT = "DISCOVER_CONTEXT"
+    UNDERSTAND_REQUIREMENTS = "UNDERSTAND_REQUIREMENTS"
+    REVIEW_REQUIREMENTS = "REVIEW_REQUIREMENTS"
+    PROJECT_PLANNING = "PROJECT_PLANNING"
+    REVIEW_PROJECT_PLAN = "REVIEW_PROJECT_PLAN"
+    PROJECT_DECOMPOSITION = "PROJECT_DECOMPOSITION"
+    REVIEW_DECOMPOSITION = "REVIEW_DECOMPOSITION"
+    TASK_QUEUE = "TASK_QUEUE"
+    TASK_EXECUTION_ENGINE = "TASK_EXECUTION_ENGINE"
+    SYSTEM_INTEGRATION = "SYSTEM_INTEGRATION"
+    SYSTEM_REVIEW = "SYSTEM_REVIEW"
+    FINAL_VERIFICATION = "FINAL_VERIFICATION"
+    COMPLETE = "COMPLETE"
+
+    # ── Dynamic stages (activated when relevant artifacts discovered) ──
+    BUSINESS_ANALYSIS = "BUSINESS_ANALYSIS"
+    PRD_ANALYSIS = "PRD_ANALYSIS"
+    USER_STORY_ANALYSIS = "USER_STORY_ANALYSIS"
+    UX_REVIEW = "UX_REVIEW"
+    ARCHITECTURE_DISCOVERY = "ARCHITECTURE_DISCOVERY"
+    API_CONTRACT_REVIEW = "API_CONTRACT_REVIEW"
+    SCHEMA_ANALYSIS = "SCHEMA_ANALYSIS"
+    INFRASTRUCTURE_REVIEW = "INFRASTRUCTURE_REVIEW"
+    DEPLOYMENT_PLANNING = "DEPLOYMENT_PLANNING"
+    SECURITY_REVIEW = "SECURITY_REVIEW"
+    ACCESSIBILITY_REVIEW = "ACCESSIBILITY_REVIEW"
+    PERFORMANCE_REVIEW = "PERFORMANCE_REVIEW"
+    OBSERVABILITY_PLANNING = "OBSERVABILITY_PLANNING"
+    MIGRATION_PLANNING = "MIGRATION_PLANNING"
+    DOCUMENTATION_PLANNING = "DOCUMENTATION_PLANNING"
+    RELEASE_PLANNING = "RELEASE_PLANNING"
+    POST_DEPLOYMENT_VALIDATION = "POST_DEPLOYMENT_VALIDATION"
+
+
+# Ordered core lifecycle stages
+CORE_LIFECYCLE: list[WorkflowStage] = [
+    WorkflowStage.INITIALIZE,
+    WorkflowStage.DISCOVER_CONTEXT,
+    WorkflowStage.UNDERSTAND_REQUIREMENTS,
+    WorkflowStage.REVIEW_REQUIREMENTS,
+    WorkflowStage.PROJECT_PLANNING,
+    WorkflowStage.REVIEW_PROJECT_PLAN,
+    WorkflowStage.PROJECT_DECOMPOSITION,
+    WorkflowStage.REVIEW_DECOMPOSITION,
+    WorkflowStage.TASK_QUEUE,
+    WorkflowStage.TASK_EXECUTION_ENGINE,
+    WorkflowStage.SYSTEM_INTEGRATION,
+    WorkflowStage.SYSTEM_REVIEW,
+    WorkflowStage.FINAL_VERIFICATION,
+    WorkflowStage.COMPLETE,
+]
+
+# Which artifacts trigger which dynamic stages
+ARTIFACT_STAGE_MAP: dict[str, WorkflowStage] = {
+    "prd": WorkflowStage.PRD_ANALYSIS,
+    "requirements": WorkflowStage.UNDERSTAND_REQUIREMENTS,
+    "openapi": WorkflowStage.API_CONTRACT_REVIEW,
+    "swagger": WorkflowStage.API_CONTRACT_REVIEW,
+    "schema.sql": WorkflowStage.SCHEMA_ANALYSIS,
+    "migration": WorkflowStage.MIGRATION_PLANNING,
+    "dockerfile": WorkflowStage.INFRASTRUCTURE_REVIEW,
+    "kubernetes": WorkflowStage.INFRASTRUCTURE_REVIEW,
+    "deploy": WorkflowStage.DEPLOYMENT_PLANNING,
+    "security": WorkflowStage.SECURITY_REVIEW,
+    "architecture": WorkflowStage.ARCHITECTURE_DISCOVERY,
+    "figma": WorkflowStage.UX_REVIEW,
+    "user_story": WorkflowStage.USER_STORY_ANALYSIS,
+    "performance": WorkflowStage.PERFORMANCE_REVIEW,
+    "observability": WorkflowStage.OBSERVABILITY_PLANNING,
+    "metrics": WorkflowStage.OBSERVABILITY_PLANNING,
+}

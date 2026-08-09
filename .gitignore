@@ -1,0 +1,40 @@
+# AEOS workspace
+.aeos/state.json
+.aeos/state.backup.json
+.aeos/logs/
+.aeos/tests/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Secrets (never commit API keys)
+.env
+*.env
+secrets.yaml

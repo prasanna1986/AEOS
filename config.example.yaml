@@ -1,0 +1,192 @@
+# ============================================================
+# AEOS Configuration Example
+# Copy to ~/.aeos/config.yaml (global) or .aeos/config.yaml
+# (project-level override, merged on top of global config)
+# ============================================================
+
+# ────────────────────────────────────────────────────────────
+# PROVIDERS
+# Define one or more LLM providers. Each has a unique key.
+# Supported types: openai | anthropic | vertex_ai | ollama
+# ────────────────────────────────────────────────────────────
+providers:
+
+  # ── LOCAL: Ollama on this machine ─────────────────────────
+  local_ollama:
+    type: ollama                               # Ollama native /api/chat protocol
+    base_url: "http://localhost:11434"
+    models:
+      - mistral
+      - codellama:7b
+      - phi3:mini
+      - llama3.1:8b
+
+  # ── LOCAL: Ollama on a DIFFERENT machine on the network ───
+  team_ollama:
+    type: ollama
+    base_url: "http://192.168.1.100:11434"     # just change the host
+
+  # ── LOCAL: vLLM / LM Studio / llama.cpp / text-gen-webui ─
+  # These expose an OpenAI-compatible API — use type: openai
+  # and point base_url at any host:port
+  local_vllm:
+    type: openai                               # OpenAI protocol
+    base_url: "http://localhost:8000/v1"       # local vLLM
+    # api_key_env: optional — omit if not required by the server
+
+  remote_vllm:
+    type: openai
+    base_url: "http://192.168.1.50:8000/v1"   # vLLM on a different machine
+
+  lm_studio_local:
+    type: openai
+    base_url: "http://localhost:1234/v1"       # LM Studio default port
+
+  # ── LOCAL: Anthropic-compatible server (e.g. LiteLLM proxy) ──
+  # Any server that speaks the Anthropic Messages API
+  local_anthropic_compat:
+    type: anthropic                            # Anthropic protocol
+    base_url: "http://localhost:8001"          # local Anthropic-compatible server
+    api_key_env: LOCAL_ANTHROPIC_KEY           # whatever the server expects
+
+  remote_litellm_proxy:
+    type: anthropic
+    base_url: "http://my-inference-box:4000"   # LiteLLM proxy on another host
+    api_key_env: LITELLM_API_KEY
+
+  # ── CLOUD: OpenAI ─────────────────────────────────────────
+  openai_cloud:
+    type: openai
+    base_url: "https://api.openai.com/v1"
+    api_key_env: OPENAI_API_KEY
+    timeout: 120
+
+  # ── CLOUD: OpenAI-compatible (Groq, Together, Fireworks, etc.) ──
+  groq_cloud:
+    type: openai
+    base_url: "https://api.groq.com/openai/v1"
+    api_key_env: GROQ_API_KEY
+
+  together_cloud:
+    type: openai
+    base_url: "https://api.together.xyz/v1"
+    api_key_env: TOGETHER_API_KEY
+
+  # ── CLOUD: Anthropic ──────────────────────────────────────
+  anthropic_cloud:
+    type: anthropic
+    # base_url: omit to use default api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY
+    timeout: 180
+
+  # ── CLOUD: Google Vertex AI ───────────────────────────────
+  vertex_ai:
+    type: vertex_ai
+    project: my-gcp-project-id                # GCP project ID
+    location: us-central1                     # region
+    # Auth: Application Default Credentials (ADC)
+    # Run: gcloud auth application-default login
+
+# ────────────────────────────────────────────────────────────
+# MODEL ROUTING
+# Maps (task_type, complexity) → (provider, model)
+#
+# Task types:
+#   inference  — reasoning, analysis, requirements, architecture
+#   coding     — code generation, debugging, refactoring
+#   planning   — project planning, decomposition
+#   review     — artifact review, code review
+#   verification — test generation, test analysis
+#
+# Complexities:
+#   high   — large context, complex reasoning, critical decisions
+#   medium — moderate complexity, standard tasks
+#   low    — small focused tasks, SLMs handle these well
+# ────────────────────────────────────────────────────────────
+routing:
+  inference:
+    high:
+      provider: anthropic_cloud
+      model: claude-opus-4-5
+    medium:
+      provider: openai_cloud
+      model: gpt-4o
+    low:
+      provider: local_ollama
+      model: mistral
+
+  coding:
+    high:
+      provider: anthropic_cloud
+      model: claude-sonnet-4-5
+    medium:
+      provider: openai_cloud
+      model: gpt-4o
+    low:
+      provider: local_ollama
+      model: codellama:7b
+
+  planning:
+    high:
+      provider: anthropic_cloud
+      model: claude-opus-4-5
+    medium:
+      provider: anthropic_cloud
+      model: claude-haiku-4-5
+    low:
+      provider: local_ollama
+      model: llama3.1:8b
+
+  review:
+    high:
+      provider: anthropic_cloud
+      model: claude-opus-4-5
+    medium:
+      provider: openai_cloud
+      model: gpt-4o
+    low:
+      provider: local_ollama
+      model: mistral
+
+  verification:
+    high:
+      provider: openai_cloud
+      model: gpt-4o
+    medium:
+      provider: local_ollama
+      model: llama3.1:8b
+    low:
+      provider: local_ollama
+      model: phi3:mini
+
+# ────────────────────────────────────────────────────────────
+# PROJECT DEFAULTS
+# ────────────────────────────────────────────────────────────
+project:
+  # Directory for state, artifacts, and logs (relative to project root)
+  workspace_dir: ".aeos"
+
+  # Maximum retry attempts per task before escalating
+  max_retries: 3
+
+  # Pause and ask user on critical decisions (recommended: true)
+  ask_on_critical: true
+
+  # Maximum lines of code per atomic task (tasks larger than this
+  # are further decomposed before being sent to an SLM)
+  decompose_threshold: 300
+
+  # Automatically activate dynamic workflow stages when relevant
+  # artifacts are discovered (PRD, OpenAPI spec, Figma, etc.)
+  auto_activate_stages: true
+
+  # Default git author for autonomous commits
+  git_author_name: "AEOS Autonomous Agent"
+  git_author_email: "aeos@localhost"
+
+# ────────────────────────────────────────────────────────────
+# LOGGING
+# ────────────────────────────────────────────────────────────
+logging:
+  level: INFO          # DEBUG | INFO | WARNING | ERROR
+  file: ".aeos/aeos.log"

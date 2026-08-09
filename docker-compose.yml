@@ -1,0 +1,55 @@
+services:
+  aeos:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: aeos:latest
+    container_name: aeos
+
+    # ── Interactive terminal (required for REPL) ──────────
+    stdin_open: true   # docker run -i
+    tty: true          # docker run -t
+
+    # ── Volumes ───────────────────────────────────────────
+    volumes:
+      # The project being engineered — mount your actual project here
+      - ${PROJECT_DIR:-.}:/project
+
+      # Global AEOS config and history — persists across containers
+      - ${HOME}/.aeos:/root/.aeos
+
+      # Optional: mount a specific config file
+      # - ./my-config.yaml:/root/.aeos/config.yaml:ro
+
+    # ── Working directory inside container ────────────────
+    working_dir: /project
+
+    # ── API keys — set in .env or shell environment ───────
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY:-}
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-}
+      # Pass any custom env vars your config uses
+      - VLLM_API_KEY=${VLLM_API_KEY:-}
+      - LOCAL_ANTHROPIC_KEY=${LOCAL_ANTHROPIC_KEY:-}
+
+    # ── Network — allows reaching local LLM servers on host ──
+    # Use host.docker.internal to reach services on the host machine
+    # e.g. Ollama at http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── Optional: run Ollama alongside AEOS ───────────────
+  # Uncomment to start a local Ollama server in the same compose stack.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+
+# volumes:
+#   ollama_data:

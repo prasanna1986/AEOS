@@ -1,0 +1,87 @@
+"""Model router — maps (task_type, complexity) → provider + LLM call."""
+
+from __future__ import annotations
+
+from aeos.core.config.schema import AEOSConfig, Complexity, TaskType, ProviderType
+from aeos.core.providers.base import CompletionRequest, CompletionResponse, LLMProvider
+
+
+def _build_provider(provider_key: str, config: AEOSConfig) -> LLMProvider:
+    """Instantiate the correct LLMProvider from config."""
+    prov_cfg = config.providers[provider_key]
+    kwargs = prov_cfg.model_dump(exclude={"type", "extra"})
+    kwargs.update(prov_cfg.extra)
+
+    match prov_cfg.type:
+        case ProviderType.OPENAI:
+            from aeos.core.providers.openai_provider import OpenAIProvider
+            return OpenAIProvider(**kwargs)
+        case ProviderType.ANTHROPIC:
+            from aeos.core.providers.anthropic_provider import AnthropicProvider
+            return AnthropicProvider(**kwargs)
+        case ProviderType.VERTEX_AI:
+            from aeos.core.providers.vertex_provider import VertexAIProvider
+            return VertexAIProvider(**kwargs)
+        case ProviderType.OLLAMA:
+            from aeos.core.providers.ollama_provider import OllamaProvider
+            return OllamaProvider(**kwargs)
+        case _:
+            raise ValueError(f"Unknown provider type: {prov_cfg.type}")
+
+
+class ModelRouter:
+    """
+    Routes LLM requests to the correct provider + model based on task type
+    and complexity, as configured in config.yaml routing section.
+    """
+
+    def __init__(self, config: AEOSConfig) -> None:
+        self._config = config
+        self._provider_cache: dict[str, LLMProvider] = {}
+
+    def get_provider(self, provider_key: str) -> LLMProvider:
+        if provider_key not in self._provider_cache:
+            self._provider_cache[provider_key] = _build_provider(provider_key, self._config)
+        return self._provider_cache[provider_key]
+
+    async def complete(
+        self,
+        messages: list,
+        task_type: TaskType,
+        complexity: Complexity,
+        temperature: float = 0.2,
+        max_tokens: int = 8192,
+    ) -> CompletionResponse:
+        """
+        Route a completion request to the appropriate model.
+
+        Args:
+            messages: List of Message objects.
+            task_type: Type of task (inference, coding, planning, review, verification).
+            complexity: Task complexity (high, medium, low).
+            temperature: Sampling temperature.
+            max_tokens: Maximum output tokens.
+        """
+        target = self._config.routing.resolve(task_type, complexity)
+        provider = self.get_provider(target.provider)
+
+        request = CompletionRequest(
+            messages=messages,
+            model=target.model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return await provider.complete(request)
+
+    def describe_routing(self) -> dict[str, dict[str, str]]:
+        """Return a human-readable routing table for display."""
+        result: dict[str, dict[str, str]] = {}
+        for tt in TaskType:
+            routing = getattr(self._config.routing, tt.value, None)
+            if routing is None:
+                continue
+            result[tt.value] = {}
+            for cplx in Complexity:
+                target = routing.for_complexity(cplx)
+                result[tt.value][cplx.value] = f"{target.provider} / {target.model}"
+        return result
