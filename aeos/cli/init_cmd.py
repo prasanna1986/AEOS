@@ -1,5 +1,5 @@
 """
-aeos init — interactive project initialization wizard.
+aeos init -- interactive project initialization wizard.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def init_command(
     """
     console.print(
         Panel.fit(
-            "[bold cyan]AEOS Init[/] — Autonomous Engineering OS Setup",
+            "[bold cyan]AEOS Init[/] -- Autonomous Engineering OS Setup",
             border_style="cyan",
         )
     )
@@ -55,14 +55,14 @@ def init_command(
     # Copy example config as starting point
     if _EXAMPLE_CONFIG.exists():
         shutil.copy2(_EXAMPLE_CONFIG, config_path)
-        console.print(f"[green]✓[/] Created config at [cyan]{config_path}[/]")
+        console.print(f"[green]OK[/] Created config at [cyan]{config_path}[/]")
     else:
         # Generate minimal config inline
         _write_minimal_config(config_path)
-        console.print(f"[green]✓[/] Created minimal config at [cyan]{config_path}[/]")
+        console.print(f"[green]OK[/] Created minimal config at [cyan]{config_path}[/]")
 
     # Interactive setup
-    console.print("\n[bold]Quick Setup[/] — configure your first provider\n")
+    console.print("\n[bold]Quick Setup[/] -- configure your first provider\n")
     _interactive_setup(config_path)
 
     # Create project workspace dirs
@@ -70,7 +70,7 @@ def init_command(
         (target_dir / subdir).mkdir(exist_ok=True)
 
     console.print(
-        f"\n[bold green]✓ AEOS initialized![/]\n\n"
+        f"\n[bold green]OK AEOS initialized![/]\n\n"
         f"  [dim]Config:[/]    {config_path}\n"
         f"  [dim]Next steps:[/]\n"
         f"    1. Edit [cyan]{config_path}[/] to add your providers\n"
@@ -98,7 +98,7 @@ def _interactive_setup(config_path: Path) -> None:
             is_openai_compat = base_url.rstrip("/") != "http://localhost:11434"
             if is_openai_compat:
                 console.print(
-                    "  [dim]Non-default URL detected — will use OpenAI-compatible API "
+                    "  [dim]Non-default URL detected -- will use OpenAI-compatible API "
                     "(LM Studio / vLLM / llama.cpp mode).[/]"
                 )
             default_model = "mistral" if not is_openai_compat else "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF"

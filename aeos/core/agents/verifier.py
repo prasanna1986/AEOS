@@ -1,4 +1,4 @@
-"""Verifier agent — generates tests (TDD Red) and analyses verification results."""
+"""Verifier agent -- generates tests (TDD Red) and analyses verification results."""
 
 from __future__ import annotations
 

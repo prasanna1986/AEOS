@@ -1,4 +1,4 @@
-"""Workflow engine — drives the full AEOS lifecycle state machine."""
+"""Workflow engine -- drives the full AEOS lifecycle state machine."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ console = Console()
 
 class WorkflowEngine:
     """
-    Drives the AEOS lifecycle from INITIALIZE → COMPLETE.
+    Drives the AEOS lifecycle from INITIALIZE -> COMPLETE.
 
     This is the top-level execution loop. It:
     - Recovers state on startup
@@ -75,39 +75,53 @@ class WorkflowEngine:
         self._reviewer = ReviewerAgent(self._router, ctx)
         self._stage_retries: dict[str, int] = {}
 
-    # ─────────────────────────────────────────────────────────
+    # ---------------------------------------------------------
     # Main execution loop
-    # ─────────────────────────────────────────────────────────
+    # ---------------------------------------------------------
 
     async def run(self) -> AEOSState:
         """Execute until COMPLETE or blocked on user input."""
         console.print(
             Panel.fit(
-                f"[bold cyan]AEOS[/] — Autonomous Engineering OS\n"
+                f"[bold cyan]AEOS[/] -- Autonomous Engineering OS\n"
                 f"[dim]Objective:[/] {self._state.objective}\n"
                 f"[dim]Resuming from:[/] {self._state.current_stage}",
                 border_style="cyan",
             )
         )
 
+        _exc_retries: dict[str, int] = {}
+        max_exc_retries = max(1, self._config.project.max_retries)
+
         while not self._state.is_complete:
             stage = WorkflowStage(self._state.current_stage)
-            console.print(f"\n[bold]▶  Stage:[/] {stage.value}")
+            console.print(f"\n[bold]>>  Stage:[/] {stage.value}")
 
             try:
                 next_stage = await self._execute_stage(stage)
+                _exc_retries.pop(stage.value, None)  # reset on success
             except KeyboardInterrupt:
-                console.print("\n[yellow]Interrupted — state saved. Run `aeos resume` to continue.[/]")
+                console.print("\n[yellow]Interrupted -- state saved. Run `aeos resume` to continue.[/]")
                 break
             except Exception as exc:
-                console.print(f"\n[red]Stage error: {exc}[/]")
-                next_stage = stage  # stay and retry
+                count = _exc_retries.get(stage.value, 0) + 1
+                _exc_retries[stage.value] = count
+                console.print(f"\n[red]Stage error (attempt {count}/{max_exc_retries}): {exc}[/]")
+                if count >= max_exc_retries:
+                    console.print(
+                        f"  [bold red]FAIL: Stage {stage.value} failed {count} times --"
+                        f" auto-advancing to avoid infinite loop[/]"
+                    )
+                    _exc_retries.pop(stage.value, None)
+                    next_stage = self._next_error_stage(stage)
+                else:
+                    next_stage = stage  # retry the same stage
 
             if next_stage == WorkflowStage.COMPLETE:
                 self._state.is_complete = True
                 self._state.completion_evidence = "All completion criteria verified."
                 self._sm.save(self._state)
-                console.print("\n[bold green]✓ AEOS — COMPLETE[/]")
+                console.print("\n[bold green]OK AEOS -- COMPLETE[/]")
                 break
 
             self._sm.update_stage(self._state, next_stage.value)
@@ -118,9 +132,15 @@ class WorkflowEngine:
 
         return self._state
 
-    # ─────────────────────────────────────────────────────────
+    def _next_error_stage(self, failed_stage: WorkflowStage) -> WorkflowStage:
+        """Advance to next stage when a stage errors out too many times."""
+        nxt = self._next_core_stage(failed_stage)
+        console.print(f"  [yellow]-> Auto-advancing {failed_stage.value} -> {nxt.value}[/]")
+        return nxt
+
+    # ---------------------------------------------------------
     # Stage dispatch
-    # ─────────────────────────────────────────────────────────
+    # ---------------------------------------------------------
 
     async def _execute_stage(self, stage: WorkflowStage) -> WorkflowStage:
         match stage:
@@ -153,13 +173,13 @@ class WorkflowEngine:
             case WorkflowStage.COMPLETE:
                 return WorkflowStage.COMPLETE
             case _:
-                # Dynamic stages — treat as pass-through for now
-                console.print(f"  [dim]Dynamic stage {stage.value} — passing through[/]")
+                # Dynamic stages -- treat as pass-through for now
+                console.print(f"  [dim]Dynamic stage {stage.value} -- passing through[/]")
                 return self._next_core_stage(stage)
 
-    # ─────────────────────────────────────────────────────────
+    # ---------------------------------------------------------
     # Individual stage implementations
-    # ─────────────────────────────────────────────────────────
+    # ---------------------------------------------------------
 
     async def _stage_initialize(self) -> WorkflowStage:
         console.print("  Initializing project workspace...")
@@ -229,7 +249,7 @@ class WorkflowEngine:
 
         if outcome == ReviewOutcome.PASS:
             self._stage_retries[stage.value] = 0
-            console.print(f"  {stage.value} review: [bold green]PASS[/] — {summary}")
+            console.print(f"  {stage.value} review: [bold green]PASS[/] -- {summary}")
             return default_next
 
         # Non-PASS outcome: increment retry count for this stage
@@ -240,7 +260,7 @@ class WorkflowEngine:
         if count >= max_retries:
             console.print(
                 f"  {stage.value} review: [bold yellow]{outcome.value.upper()}[/] (attempt {count}/{max_retries}).\n"
-                f"  [bold yellow]⚠ Max revisions reached for {stage.value} — proceeding to next stage with recorded notes.[/]"
+                f"  [bold yellow]! Max revisions reached for {stage.value} -- proceeding to next stage with recorded notes.[/]"
             )
             self._state.decisions.append(
                 DecisionRecord(
@@ -251,7 +271,7 @@ class WorkflowEngine:
             self._sm.save(self._state)
             return default_next
 
-        console.print(f"  {stage.value} review: [bold yellow]{outcome.value.upper()}[/] (attempt {count}/{max_retries}) — {summary}")
+        console.print(f"  {stage.value} review: [bold yellow]{outcome.value.upper()}[/] (attempt {count}/{max_retries}) -- {summary}")
         return get_next_stage(stage, outcome)
 
     async def _stage_understand_requirements(self) -> WorkflowStage:
@@ -265,10 +285,17 @@ class WorkflowEngine:
         return WorkflowStage.REVIEW_REQUIREMENTS
 
     async def _stage_review_requirements(self) -> WorkflowStage:
+        # Compact prompt to fit small local context windows (4096 tokens).
+        ctx_keys = ("requirements_feedback", "project_tree")
+        ctx_snippet = json.dumps(
+            {k: v for k, v in self._state.context.items() if k not in ctx_keys},
+            default=str,
+        )[:400]
+        artifacts = ", ".join(self._state.discovered_artifacts[:5]) or "none"
         req_summary = (
-            f"Objective: {self._state.objective}\n"
-            f"Discovered artifacts: {self._state.discovered_artifacts}\n"
-            f"Context: {json.dumps(self._state.context, default=str, indent=2)[:2000]}"
+            f"Objective: {self._state.objective[:300]}\n"
+            f"Artifacts: {artifacts}\n"
+            f"Context: {ctx_snippet}"
         )
         review = await self._reviewer.review(req_summary, "requirements", "review_requirements")
         return self._resolve_review_outcome(WorkflowStage.REVIEW_REQUIREMENTS, review, WorkflowStage.PROJECT_PLANNING)
@@ -352,7 +379,7 @@ class WorkflowEngine:
         ]
 
         if not pending:
-            console.print("  All tasks complete — advancing to integration")
+            console.print("  All tasks complete -- advancing to integration")
             return WorkflowStage.SYSTEM_INTEGRATION
 
         for tid in pending:
@@ -380,7 +407,7 @@ class WorkflowEngine:
         )
         self._state.verification_results["system_integration"] = result.success
         self._sm.save(self._state)
-        console.print(f"  Integration tests: {'PASSED ✓' if result.success else 'FAILED'}")
+        console.print(f"  Integration tests: {'PASSED OK' if result.success else 'FAILED'}")
         return WorkflowStage.SYSTEM_REVIEW
 
     async def _stage_system_review(self) -> WorkflowStage:
@@ -411,9 +438,9 @@ class WorkflowEngine:
             return WorkflowStage.COMPLETE
         return WorkflowStage.TASK_EXECUTION_ENGINE
 
-    # ─────────────────────────────────────────────────────────
+    # ---------------------------------------------------------
     # Helpers
-    # ─────────────────────────────────────────────────────────
+    # ---------------------------------------------------------
 
     def _are_dependencies_met(self, task: TaskRecord) -> bool:
         for dep_id in task.dependencies:

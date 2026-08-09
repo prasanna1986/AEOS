@@ -1,4 +1,4 @@
-"""aeos status — display current workflow state and task queue."""
+"""aeos status -- display current workflow state and task queue."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def status_command(
 
     state = sm.load()
 
-    # ── Overview ─────────────────────────────────────────────
+    # -- Overview ---------------------------------------------
     status_color = "green" if state.is_complete else "cyan"
     console.print(
         Panel.fit(
@@ -50,7 +50,7 @@ def status_command(
         )
     )
 
-    # ── Task Table ────────────────────────────────────────────
+    # -- Task Table --------------------------------------------
     if state.tasks:
         table = Table(title="Task Queue", box=box.ROUNDED, border_style="dim")
         table.add_column("ID", style="dim", width=8)
@@ -61,33 +61,33 @@ def status_command(
         table.add_column("Verified", width=8)
 
         status_styles = {
-            TaskStatus.COMPLETED: "[green]✓ complete[/]",
-            TaskStatus.IN_PROGRESS: "[cyan]⚙ running[/]",
-            TaskStatus.FAILED: "[red]✗ failed[/]",
-            TaskStatus.BLOCKED: "[yellow]⏸ blocked[/]",
-            TaskStatus.PENDING: "[dim]◦ pending[/]",
-            TaskStatus.READY: "[blue]● ready[/]",
-            TaskStatus.SKIPPED: "[dim]— skipped[/]",
+            TaskStatus.COMPLETED: "[green]OK complete[/]",
+            TaskStatus.IN_PROGRESS: "[cyan]? running[/]",
+            TaskStatus.FAILED: "[red]FAIL failed[/]",
+            TaskStatus.BLOCKED: "[yellow]? blocked[/]",
+            TaskStatus.PENDING: "[dim]? pending[/]",
+            TaskStatus.READY: "[blue]? ready[/]",
+            TaskStatus.SKIPPED: "[dim]-- skipped[/]",
         }
 
         for task in state.tasks.values():
             table.add_row(
                 task.id,
-                task.title[:48] + ("…" if len(task.title) > 48 else ""),
+                task.title[:48] + ("..." if len(task.title) > 48 else ""),
                 task.task_type,
                 task.complexity,
                 status_styles.get(task.status, task.status.value),
-                "[green]✓[/]" if task.verification_passed else "[dim]—[/]",
+                "[green]OK[/]" if task.verification_passed else "[dim]--[/]",
             )
         console.print(table)
 
-    # ── Decisions ────────────────────────────────────────────
+    # -- Decisions --------------------------------------------
     if state.decisions:
         console.print(f"\n[dim]{len(state.decisions)} decisions recorded.[/]")
 
-    # ── Failures ─────────────────────────────────────────────
+    # -- Failures ---------------------------------------------
     failed_tasks = [t for t in state.tasks.values() if t.status == TaskStatus.FAILED]
     if failed_tasks:
         console.print(f"\n[red]{len(failed_tasks)} tasks failed:[/]")
         for t in failed_tasks:
-            console.print(f"  • {t.title} (retries: {t.retry_count})")
+            console.print(f"  - {t.title} (retries: {t.retry_count})")

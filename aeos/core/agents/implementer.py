@@ -1,4 +1,4 @@
-"""Implementer agent — TDD Green phase: minimum code to pass failing tests."""
+"""Implementer agent -- TDD Green phase: minimum code to pass failing tests."""
 
 from __future__ import annotations
 

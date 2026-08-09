@@ -1,4 +1,4 @@
-"""Task schema — lightweight models used by the queue and executor."""
+"""Task schema -- lightweight models used by the queue and executor."""
 
 from __future__ import annotations
 

@@ -20,7 +20,7 @@ class TaskQueue:
     def __init__(self, state: AEOSState) -> None:
         self._state = state
 
-    # ── Query helpers ────────────────────────────────────────
+    # -- Query helpers ----------------------------------------
 
     def pending_task_ids(self) -> list[str]:
         """Return IDs of tasks that are PENDING or READY, ordered by priority."""
@@ -62,7 +62,7 @@ class TaskQueue:
             counts[t.status.value] += 1
         return dict(counts)
 
-    # ── Mutation helpers ─────────────────────────────────────
+    # -- Mutation helpers -------------------------------------
 
     def enqueue(self, task: TaskRecord, prepend: bool = False) -> None:
         """Add a task to the queue."""
@@ -91,7 +91,7 @@ class TaskQueue:
                     unblocked.append(child_id)
         return unblocked
 
-    # ── Internal ─────────────────────────────────────────────
+    # -- Internal ---------------------------------------------
 
     def _dependencies_met(self, task: TaskRecord) -> bool:
         for dep_id in task.dependencies:

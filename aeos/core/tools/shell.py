@@ -1,4 +1,4 @@
-"""Shell tool — safe command execution with timeout and output capture."""
+"""Shell tool -- safe command execution with timeout and output capture."""
 
 from __future__ import annotations
 

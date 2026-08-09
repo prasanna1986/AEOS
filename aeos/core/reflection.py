@@ -1,5 +1,5 @@
 """
-Reflection engine — captures lessons learned, patterns, and improvements
+Reflection engine -- captures lessons learned, patterns, and improvements
 after each completed stage or task.
 """
 

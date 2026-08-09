@@ -1,5 +1,5 @@
 """
-aeos run — start or resume autonomous engineering execution.
+aeos run -- start or resume autonomous engineering execution.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ def run_command(
     """
     console.print(
         Panel.fit(
-            f"[bold cyan]AEOS[/] — Autonomous Engineering OS\n"
+            f"[bold cyan]AEOS[/] -- Autonomous Engineering OS\n"
             f"[dim]Objective:[/] {objective}",
             border_style="cyan",
         )
@@ -93,5 +93,5 @@ def run_command(
 
 async def _console_ask(question: str) -> str:
     """Present a critical question to the user and return their answer."""
-    console.print(f"\n[bold yellow]⚠  Critical question:[/]\n{question}")
+    console.print(f"\n[bold yellow]!  Critical question:[/]\n{question}")
     return typer.prompt("Your answer")

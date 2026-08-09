@@ -1,4 +1,4 @@
-"""Reviewer agent — evidence-based artifact review with structured outcomes."""
+"""Reviewer agent -- evidence-based artifact review with structured outcomes."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from aeos.core.state.schema import ReviewOutcome
 
 class ReviewerAgent(BaseAgent):
     task_type = TaskType.REVIEW
-    complexity = Complexity.HIGH  # Critical decisions need capable models
+    complexity = Complexity.MEDIUM  # MEDIUM keeps token budget safe for local models
 
     async def review(
         self,

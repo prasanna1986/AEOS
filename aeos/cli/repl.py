@@ -1,5 +1,5 @@
 """
-AEOS Interactive REPL — Claude-style persistent interactive shell.
+AEOS Interactive REPL -- Claude-style persistent interactive shell.
 
 Enter `aeos` (no arguments) to start the interactive session.
 Type your engineering objective and AEOS runs autonomously.
@@ -38,7 +38,7 @@ from aeos.core.workflow.engine import WorkflowEngine
 
 console = Console()
 
-# ── REPL Theme ───────────────────────────────────────────────
+# -- REPL Theme -----------------------------------------------
 REPL_STYLE = Style.from_dict({
     "prompt":       "#00d7ff bold",
     "prompt.arrow": "#005f87",
@@ -48,9 +48,9 @@ REPL_STYLE = Style.from_dict({
 })
 
 BANNER = """
-[bold cyan]  ╔═══════════════════════════════════════════╗[/]
-[bold cyan]  ║  [white]AEOS[/] [dim]Autonomous Engineering OS[/]          [bold cyan]║[/]
-[bold cyan]  ╚═══════════════════════════════════════════╝[/]
+[bold cyan]  ?????????????????????????????????????????????[/]
+[bold cyan]  ?  [white]AEOS[/] [dim]Autonomous Engineering OS[/]          [bold cyan]?[/]
+[bold cyan]  ?????????????????????????????????????????????[/]
   [dim]Type your objective and press Enter to begin.[/]
   [dim]Type[/] [yellow]/help[/] [dim]for commands,[/] [yellow]/quit[/] [dim]to exit.[/]
 """
@@ -117,7 +117,7 @@ class AEOSRepl:
         history_dir.mkdir(exist_ok=True)
         self._history = FileHistory(str(history_dir / "repl_history"))
 
-    # ── Bootstrap ────────────────────────────────────────────
+    # -- Bootstrap --------------------------------------------
 
     def _load_config(self) -> bool:
         """Load config; return False if not found."""
@@ -140,14 +140,14 @@ class AEOSRepl:
         if self._sm.exists():
             self._state = self._sm.load()
 
-    # ── Main entry point ────────────────────────────────────
+    # -- Main entry point ------------------------------------
 
     def run(self) -> None:
         """Start the REPL. Blocks until the user quits."""
         console.print(BANNER)
 
         if not self._load_config():
-            console.print("[dim]Continuing without config — only /help commands available.[/]\n")
+            console.print("[dim]Continuing without config -- only /help commands available.[/]\n")
         else:
             self._load_state()
             self._print_session_info()
@@ -166,7 +166,7 @@ class AEOSRepl:
                 prompt_html = HTML(
                     f'<prompt>aeos</prompt>'
                     f'<dim> [{stage}]</dim>'
-                    f'<prompt.arrow> ❯ </prompt.arrow>'
+                    f'<prompt.arrow> ? </prompt.arrow>'
                 )
                 raw = session.prompt(prompt_html).strip()
             except (KeyboardInterrupt, EOFError):
@@ -177,7 +177,7 @@ class AEOSRepl:
                 continue
 
             if raw.lower() in ("/quit", "/q", "quit", "exit"):
-                console.print("[dim]Goodbye. State saved — run[/] [bold]aeos[/] [dim]to resume.[/]")
+                console.print("[dim]Goodbye. State saved -- run[/] [bold]aeos[/] [dim]to resume.[/]")
                 break
 
             if raw.startswith("/"):
@@ -186,7 +186,7 @@ class AEOSRepl:
                 # Treat as an engineering objective
                 asyncio.run(self._run_objective(raw))
 
-    # ── Slash commands ───────────────────────────────────────
+    # -- Slash commands ---------------------------------------
 
     def _handle_slash_command(self, cmd: str) -> None:
         cmd_lower = cmd.lower().split()[0]
@@ -214,7 +214,7 @@ class AEOSRepl:
             case _:
                 console.print(f"[red]Unknown command:[/] {cmd}  (type [yellow]/help[/] for commands)")
 
-    # ── Objective execution ──────────────────────────────────
+    # -- Objective execution ----------------------------------
 
     async def _run_objective(self, objective: str) -> None:
         """Run AEOS for a given objective, streaming output in real-time."""
@@ -254,7 +254,7 @@ class AEOSRepl:
             self._state = await engine.run()
         except KeyboardInterrupt:
             console.print(
-                "\n[yellow]⚠ Interrupted.[/] State saved.\n"
+                "\n[yellow]! Interrupted.[/] State saved.\n"
                 "Type [yellow]/resume[/] to continue from here."
             )
         except Exception as exc:
@@ -264,7 +264,7 @@ class AEOSRepl:
         if self._state and self._state.is_complete:
             console.print(
                 Panel.fit(
-                    "[bold green]✓ Objective Complete[/]\n"
+                    "[bold green]OK Objective Complete[/]\n"
                     f"[dim]{self._state.completion_evidence or 'All verification criteria met.'}[/]",
                     border_style="green",
                 )
@@ -283,7 +283,7 @@ class AEOSRepl:
         console.print(f"[green]Resuming from:[/] {self._state.current_stage}")
         await self._run_objective(self._state.objective)
 
-    # ── Inline Q&A callback ──────────────────────────────────
+    # -- Inline Q&A callback ----------------------------------
 
     async def _ask_user(self, question: str) -> str:
         """
@@ -293,7 +293,7 @@ class AEOSRepl:
         console.print()
         console.print(
             Panel(
-                f"[bold yellow]⚠ Critical Question[/]\n\n{question}",
+                f"[bold yellow]! Critical Question[/]\n\n{question}",
                 border_style="yellow",
                 expand=False,
             )
@@ -304,14 +304,14 @@ class AEOSRepl:
             None,
             lambda: input("  Your answer: ").strip()
         )
-        console.print(f"  [dim]→ Recorded: {answer[:80]}[/]\n")
+        console.print(f"  [dim]-> Recorded: {answer[:80]}[/]\n")
         return answer
 
-    # ── Display helpers ──────────────────────────────────────
+    # -- Display helpers --------------------------------------
 
     def _print_session_info(self) -> None:
         if self._state is None:
-            console.print("[dim]No active session — type your objective to begin.[/]\n")
+            console.print("[dim]No active session -- type your objective to begin.[/]\n")
             return
         status = "[green]COMPLETE[/]" if self._state.is_complete else "[yellow]IN PROGRESS[/]"
         console.print(
@@ -341,23 +341,23 @@ class AEOSRepl:
             table = Table(box=box.SIMPLE, border_style="dim", show_header=True)
             table.add_column("Title", max_width=50)
             table.add_column("Status", width=14)
-            table.add_column("✓", width=3)
+            table.add_column("OK", width=3)
 
             status_icons = {
-                TaskStatus.COMPLETED:   "[green]✓ done[/]",
-                TaskStatus.IN_PROGRESS: "[cyan]⚙ running[/]",
-                TaskStatus.FAILED:      "[red]✗ failed[/]",
-                TaskStatus.BLOCKED:     "[yellow]⏸ blocked[/]",
-                TaskStatus.PENDING:     "[dim]◦ pending[/]",
-                TaskStatus.READY:       "[blue]● ready[/]",
-                TaskStatus.SKIPPED:     "[dim]— skipped[/]",
+                TaskStatus.COMPLETED:   "[green]OK done[/]",
+                TaskStatus.IN_PROGRESS: "[cyan]? running[/]",
+                TaskStatus.FAILED:      "[red]FAIL failed[/]",
+                TaskStatus.BLOCKED:     "[yellow]? blocked[/]",
+                TaskStatus.PENDING:     "[dim]? pending[/]",
+                TaskStatus.READY:       "[blue]? ready[/]",
+                TaskStatus.SKIPPED:     "[dim]-- skipped[/]",
             }
 
             for task in list(self._state.tasks.values())[:20]:
                 table.add_row(
                     task.title[:48],
                     status_icons.get(task.status, task.status.value),
-                    "[green]✓[/]" if task.verification_passed else "[dim]—[/]",
+                    "[green]OK[/]" if task.verification_passed else "[dim]--[/]",
                 )
             console.print(table)
 
@@ -408,7 +408,7 @@ class AEOSRepl:
             endpoint = str(prov.base_url or prov.project or "cloud")
             table.add_row(
                 key, prov.type.value, endpoint[:40],
-                "[green]✓[/]" if available else "[red]✗[/]",
+                "[green]OK[/]" if available else "[red]FAIL[/]",
             )
         console.print(table)
 
@@ -425,7 +425,7 @@ class AEOSRepl:
         table.add_column("Medium")
         table.add_column("Low")
         for tt, cmap in routing.items():
-            table.add_row(tt, cmap.get("high","—"), cmap.get("medium","—"), cmap.get("low","—"))
+            table.add_row(tt, cmap.get("high","--"), cmap.get("medium","--"), cmap.get("low","--"))
         console.print(table)
 
         # Also print provider list
@@ -449,7 +449,7 @@ class AEOSRepl:
         else:
             console.print("[dim]Reset cancelled.[/]")
 
-    # ── Routing / provider commands ──────────────────────────
+    # -- Routing / provider commands --------------------------
 
     def _load_raw_config(self):
         """Load raw YAML dict + the config path. Returns (raw, path) or (None, None)."""
@@ -500,17 +500,17 @@ class AEOSRepl:
         # strip the command word itself
         args = parts[1:]  # everything after '/route'
 
-        # ── /route  (no args) ────────────────────────────────
+        # -- /route  (no args) --------------------------------
         if not args:
             self._print_config()
             console.print(Panel(
                 "[bold]Usage examples:[/]\n\n"
                 "  [yellow]/route set coding high anthropic_cloud claude-opus-4-5[/]\n"
-                "    → Set coding/high to anthropic_cloud / claude-opus-4-5\n\n"
+                "    -> Set coding/high to anthropic_cloud / claude-opus-4-5\n\n"
                 "  [yellow]/route coding local_ollama codellama:7b[/]\n"
-                "    → Set all complexity tiers for coding\n\n"
+                "    -> Set all complexity tiers for coding\n\n"
                 "  [yellow]/route local_ollama mistral[/]\n"
-                "    → Set every route to local_ollama / mistral",
+                "    -> Set every route to local_ollama / mistral",
                 title="/route help", border_style="dim", expand=False,
             ))
             return
@@ -520,7 +520,7 @@ class AEOSRepl:
             return
         routing = raw.setdefault("routing", {})
 
-        # ── /route set <task> <cplx> <provider> <model> ─────
+        # -- /route set <task> <cplx> <provider> <model> -----
         if args[0] == "set":
             if len(args) != 5:
                 console.print(
@@ -539,12 +539,12 @@ class AEOSRepl:
             routing.setdefault(task, {})[cplx] = {"provider": provider, "model": model}
             if self._save_and_reload(raw, config_path):
                 console.print(
-                    f"[green]✓[/] [cyan]{task}[/]/[cyan]{cplx}[/] "
-                    f"→ [bold]{provider}[/] / [bold]{model}[/]"
+                    f"[green]OK[/] [cyan]{task}[/]/[cyan]{cplx}[/] "
+                    f"-> [bold]{provider}[/] / [bold]{model}[/]"
                 )
             return
 
-        # ── /route <task_type> <provider> <model> ────────────
+        # -- /route <task_type> <provider> <model> ------------
         if len(args) == 3 and args[0] in _TASK_TYPES:
             task, provider, model = args
             routing.setdefault(task, {})
@@ -552,12 +552,12 @@ class AEOSRepl:
                 routing[task][cplx] = {"provider": provider, "model": model}
             if self._save_and_reload(raw, config_path):
                 console.print(
-                    f"[green]✓[/] All complexities for [cyan]{task}[/] "
-                    f"→ [bold]{provider}[/] / [bold]{model}[/]"
+                    f"[green]OK[/] All complexities for [cyan]{task}[/] "
+                    f"-> [bold]{provider}[/] / [bold]{model}[/]"
                 )
             return
 
-        # ── /route <provider> <model>  (set everything) ──────
+        # -- /route <provider> <model>  (set everything) ------
         if len(args) == 2:
             provider, model = args
             updated = []
@@ -568,7 +568,7 @@ class AEOSRepl:
                 updated.append(tt)
             if self._save_and_reload(raw, config_path):
                 console.print(
-                    f"[green]✓[/] All routes → [bold]{provider}[/] / [bold]{model}[/] "
+                    f"[green]OK[/] All routes -> [bold]{provider}[/] / [bold]{model}[/] "
                     f"({', '.join(updated)})"
                 )
             return
@@ -577,8 +577,8 @@ class AEOSRepl:
 
     def _cmd_model_shorthand(self, cmd: str) -> None:
         """
-        /model              — show routing table
-        /model <name>       — change the model name across ALL routes
+        /model              -- show routing table
+        /model <name>       -- change the model name across ALL routes
                               (provider keys are preserved)
         """
         if self._config is None:
@@ -607,7 +607,7 @@ class AEOSRepl:
                     updated += 1
         if self._save_and_reload(raw, config_path):
             console.print(
-                f"[green]✓[/] Updated [bold]{updated}[/] routes → model [bold]{model_name}[/]\n"
+                f"[green]OK[/] Updated [bold]{updated}[/] routes -> model [bold]{model_name}[/]\n"
                 f"[dim](Providers unchanged. Use /route set to change provider too.)[/]"
             )
 
@@ -676,7 +676,7 @@ class AEOSRepl:
 
         providers = raw.setdefault("providers", {})
         if key in providers:
-            console.print(f"[yellow]Provider '{key}' already exists — overwriting.[/]")
+            console.print(f"[yellow]Provider '{key}' already exists -- overwriting.[/]")
 
         if ptype == "ollama":
             if len(args) < 3:
@@ -720,7 +720,7 @@ class AEOSRepl:
             return
 
         if self._save_and_reload(raw, config_path):
-            console.print(f"[green]✓[/] Provider [bold]{key}[/] ({ptype}) registered. {note}")
+            console.print(f"[green]OK[/] Provider [bold]{key}[/] ({ptype}) registered. {note}")
             console.print(
                 f"[dim]Now point routing to it with:[/] "
                 f"[yellow]/route <task_type> {key} <model-name>[/]"
@@ -745,9 +745,9 @@ class AEOSRepl:
                     dangling.append(f"{tt}/{cplx}")
         if dangling:
             console.print(
-                f"[yellow]⚠ The following routing entries still reference '{key}':[/] "
+                f"[yellow]! The following routing entries still reference '{key}':[/] "
                 + ", ".join(dangling)
                 + "\n[dim]Update them with /route set before running.[/]"
             )
         if self._save_and_reload(raw, config_path):
-            console.print(f"[green]✓[/] Provider [bold]{key}[/] removed.")
+            console.print(f"[green]OK[/] Provider [bold]{key}[/] removed.")

@@ -1,8 +1,8 @@
 """
-AEOS — Autonomous Engineering Operating System
+AEOS -- Autonomous Engineering Operating System
 Root CLI entry point.
 
-Default (no args): launches the interactive REPL — like Claude CLI.
+Default (no args): launches the interactive REPL -- like Claude CLI.
 Type objectives inside, AEOS runs autonomously and asks critical questions inline.
 
 Subcommands (for scripting/CI):
@@ -33,11 +33,11 @@ from aeos.cli.repl import AEOSRepl
 
 app = typer.Typer(
     name="aeos",
-    help="[bold cyan]AEOS[/] — Autonomous Engineering Operating System\n\n"
+    help="[bold cyan]AEOS[/] -- Autonomous Engineering Operating System\n\n"
          "Run [bold]aeos[/] with no arguments to enter the interactive shell.\n"
-         "Type your engineering objective inside — AEOS runs autonomously.",
+         "Type your engineering objective inside -- AEOS runs autonomously.",
     rich_markup_mode="rich",
-    no_args_is_help=False,   # ← allow no-arg invocation to launch REPL
+    no_args_is_help=False,   # ? allow no-arg invocation to launch REPL
     invoke_without_command=True,
     pretty_exceptions_enable=True,
 )
@@ -60,11 +60,11 @@ def default_callback(
     """
     Launch the AEOS interactive shell when no subcommand is given.
 
-    This is the primary way to use AEOS — type your objective inside
+    This is the primary way to use AEOS -- type your objective inside
     and AEOS runs autonomously, asking critical questions inline.
     """
     if ctx.invoked_subcommand is None:
-        # No subcommand → launch interactive REPL
+        # No subcommand -> launch interactive REPL
         repl = AEOSRepl(project_dir=project_dir, config_file=config_file)
         repl.run()
 
@@ -185,7 +185,7 @@ def providers_command(
             key,
             prov_cfg.type.value,
             str(endpoint),
-            "[green]✓[/]" if available else "[red]✗[/]",
+            "[green]OK[/]" if available else "[red]FAIL[/]",
         )
     console.print(table)
 

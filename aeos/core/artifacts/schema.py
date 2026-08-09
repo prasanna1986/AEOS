@@ -1,4 +1,4 @@
-"""Artifact schema — structured engineering artifact models."""
+"""Artifact schema -- structured engineering artifact models."""
 
 from __future__ import annotations
 

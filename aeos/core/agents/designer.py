@@ -1,4 +1,4 @@
-"""Designer agent — technical design documents and architecture."""
+"""Designer agent -- technical design documents and architecture."""
 
 from __future__ import annotations
 

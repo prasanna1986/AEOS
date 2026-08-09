@@ -1,4 +1,4 @@
-"""Workflow stage definitions — all lifecycle stages as an enum."""
+"""Workflow stage definitions -- all lifecycle stages as an enum."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from enum import Enum
 
 
 class WorkflowStage(str, Enum):
-    # ── Core lifecycle ──────────────────────────────────────
+    # -- Core lifecycle --------------------------------------
     INITIALIZE = "INITIALIZE"
     DISCOVER_CONTEXT = "DISCOVER_CONTEXT"
     UNDERSTAND_REQUIREMENTS = "UNDERSTAND_REQUIREMENTS"
@@ -22,7 +22,7 @@ class WorkflowStage(str, Enum):
     FINAL_VERIFICATION = "FINAL_VERIFICATION"
     COMPLETE = "COMPLETE"
 
-    # ── Dynamic stages (activated when relevant artifacts discovered) ──
+    # -- Dynamic stages (activated when relevant artifacts discovered) --
     BUSINESS_ANALYSIS = "BUSINESS_ANALYSIS"
     PRD_ANALYSIS = "PRD_ANALYSIS"
     USER_STORY_ANALYSIS = "USER_STORY_ANALYSIS"

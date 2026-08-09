@@ -1,4 +1,4 @@
-"""Browser tool — fetch web/documentation content."""
+"""Browser tool -- fetch web/documentation content."""
 
 from __future__ import annotations
 

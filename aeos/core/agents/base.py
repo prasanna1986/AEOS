@@ -1,4 +1,4 @@
-"""Base agent — prompt rendering + LLM call + JSON extraction."""
+"""Base agent -- prompt rendering + LLM call + JSON extraction."""
 
 from __future__ import annotations
 

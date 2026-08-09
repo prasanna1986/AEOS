@@ -1,4 +1,4 @@
-"""State manager — load, save, and recover AEOS execution state."""
+"""State manager -- load, save, and recover AEOS execution state."""
 
 from __future__ import annotations
 

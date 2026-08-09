@@ -1,12 +1,12 @@
 """Ollama / LM Studio local provider.
 
 Supports two API modes:
-  - ``ollama``       — native Ollama JSON API  (POST /api/chat)
-  - ``openai_compat``— OpenAI-compatible API   (POST /v1/chat/completions)
+  - ``ollama``       -- native Ollama JSON API  (POST /api/chat)
+  - ``openai_compat``-- OpenAI-compatible API   (POST /v1/chat/completions)
 
 Auto-detection:
   If ``base_url`` is NOT the default Ollama address (localhost:11434) it is
-  almost certainly an OpenAI-compat server (LM Studio, vLLM, llama.cpp…),
+  almost certainly an OpenAI-compat server (LM Studio, vLLM, llama.cpp...),
   so ``openai_compat`` is selected automatically.  Set ``openai_compat=true``
   explicitly in your provider config to override for any base_url.
 """

@@ -1,4 +1,4 @@
-"""Planner agent — generates project plans from objectives."""
+"""Planner agent -- generates project plans from objectives."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Config loader — YAML load, env-var injection, global+project merge."""
+"""Config loader -- YAML load, env-var injection, global+project merge."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 
 def _inject_env_vars(raw: dict) -> dict:
-    """Walk provider configs and resolve api_key_env → api_key."""
+    """Walk provider configs and resolve api_key_env -> api_key."""
     providers = raw.get("providers", {})
     for name, prov in providers.items():
         env_var = prov.get("api_key_env")

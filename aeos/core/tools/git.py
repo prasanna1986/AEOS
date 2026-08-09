@@ -1,4 +1,4 @@
-"""Git tool — git operations via GitPython."""
+"""Git tool -- git operations via GitPython."""
 
 from __future__ import annotations
 

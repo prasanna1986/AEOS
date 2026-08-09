@@ -1,4 +1,4 @@
-"""State schema — Pydantic models for the full AEOS execution state."""
+"""State schema -- Pydantic models for the full AEOS execution state."""
 
 from __future__ import annotations
 
@@ -81,7 +81,7 @@ class TaskRecord(BaseModel):
     parent_id: str | None = None
     child_ids: list[str] = Field(default_factory=list)
     status: TaskStatus = TaskStatus.PENDING
-    priority: int = 50          # 0–100, higher = more urgent
+    priority: int = 50          # 0-100, higher = more urgent
     complexity: str = "medium"  # high | medium | low
     task_type: str = "coding"   # coding | inference | planning | review | verification
     current_stage: str = "pending"

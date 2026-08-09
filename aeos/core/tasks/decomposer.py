@@ -1,4 +1,4 @@
-"""Standalone task decomposer — wraps the DecomposerAgent with queue integration."""
+"""Standalone task decomposer -- wraps the DecomposerAgent with queue integration."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ class TaskDecomposer:
     - Single objective
     - Independently verifiable
     - Under the configured LoC threshold
-    - Subtasks ordered: verification-design → implementation → verification-run (TDD)
+    - Subtasks ordered: verification-design -> implementation -> verification-run (TDD)
     """
 
     def __init__(
@@ -59,7 +59,7 @@ class TaskDecomposer:
 
         # Create child task records
         child_ids: list[str] = []
-        id_map: dict[str, str] = {}  # title → generated ID (for dependency resolution)
+        id_map: dict[str, str] = {}  # title -> generated ID (for dependency resolution)
 
         for sub_data in subtasks_data:
             sub_id = str(uuid4())[:8]
@@ -69,7 +69,7 @@ class TaskDecomposer:
         for sub_data in subtasks_data:
             sub_id = id_map[sub_data["title"]]
 
-            # Resolve dependency titles → IDs
+            # Resolve dependency titles -> IDs
             dep_ids = [
                 id_map[dep_title]
                 for dep_title in sub_data.get("dependencies", [])

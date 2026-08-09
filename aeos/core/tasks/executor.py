@@ -1,4 +1,4 @@
-"""Task executor — full per-task TDD lifecycle: Red → Green → Refactor → Verify."""
+"""Task executor -- full per-task TDD lifecycle: Red -> Green -> Refactor -> Verify."""
 
 from __future__ import annotations
 
@@ -26,12 +26,12 @@ class TaskExecutor:
     """
     Executes a single task through the full TDD lifecycle:
 
-    Understand → Review Understanding → Implementation Planning → Review Plan →
-    Technical Design → Review Design →
-    [TDD Red]  Verification Design → Review Verification →
-    [TDD Green] Implementation → Run Tests →
-    [TDD Refactor] Refactor → Run Tests →
-    Implementation Review → Task Complete
+    Understand -> Review Understanding -> Implementation Planning -> Review Plan ->
+    Technical Design -> Review Design ->
+    [TDD Red]  Verification Design -> Review Verification ->
+    [TDD Green] Implementation -> Run Tests ->
+    [TDD Refactor] Refactor -> Run Tests ->
+    Implementation Review -> Task Complete
     """
 
     def __init__(
@@ -69,17 +69,17 @@ class TaskExecutor:
         task.current_stage = "understand"
         self._sm.save(self._state)
 
-        console.print(f"\n[bold cyan]⚙  Executing task:[/] {task.title}")
+        console.print(f"\n[bold cyan]?  Executing task:[/] {task.title}")
 
         try:
-            # ── 1. Check if task needs further decomposition ──────────────
+            # -- 1. Check if task needs further decomposition --------------
             task = await self._maybe_decompose(task)
             if task.status == TaskStatus.COMPLETED:
-                return task  # decomposed — children will handle
+                return task  # decomposed -- children will handle
 
-            # ── 2. Technical Design ───────────────────────────────────────
+            # -- 2. Technical Design ---------------------------------------
             task.current_stage = "design"
-            console.print(f"  [dim]→ Designing...[/]")
+            console.print(f"  [dim]-> Designing...[/]")
             design = await self._designer.design(task)
             design_review = await self._reviewer.review(
                 json.dumps(design, indent=2), "design", task.current_stage
@@ -87,9 +87,9 @@ class TaskExecutor:
             if design_review["outcome_enum"] not in (ReviewOutcome.PASS,):
                 task.metadata["design_issues"] = design_review.get("issues", [])
 
-            # ── 3. TDD Red: Generate Tests ────────────────────────────────
+            # -- 3. TDD Red: Generate Tests --------------------------------
             task.current_stage = "tdd_red"
-            console.print(f"  [dim]→ TDD Red: generating tests...[/]")
+            console.print(f"  [dim]-> TDD Red: generating tests...[/]")
             test_data = await self._verifier.generate_tests(task)
             test_path = Path(self._root) / test_data["test_file_path"]
             stub_path = Path(self._root) / test_data["stub_file_path"]
@@ -99,13 +99,13 @@ class TaskExecutor:
             task.test_file_path = str(test_path)
             self._sm.save(self._state)
 
-            # Run tests — expect FAIL (Red)
+            # Run tests -- expect FAIL (Red)
             red_result = await run_command(
                 ["python", "-m", "pytest", str(test_path), "-v", "--tb=short"],
                 cwd=self._root,
                 timeout=60,
             )
-            console.print(f"  [yellow]  Red phase: {'FAILED (expected ✓)' if not red_result.success else 'PASSED (unexpected — check stub)'}[/]")
+            console.print(f"  [yellow]  Red phase: {'FAILED (expected OK)' if not red_result.success else 'PASSED (unexpected -- check stub)'}[/]")
 
             # Review tests
             test_review = await self._reviewer.review(
@@ -114,9 +114,9 @@ class TaskExecutor:
             if test_review["outcome_enum"] == ReviewOutcome.REJECT:
                 raise RuntimeError(f"Test review rejected: {test_review.get('summary')}")
 
-            # ── 4. TDD Green: Implement ───────────────────────────────────
+            # -- 4. TDD Green: Implement -----------------------------------
             task.current_stage = "tdd_green"
-            console.print(f"  [dim]→ TDD Green: implementing...[/]")
+            console.print(f"  [dim]-> TDD Green: implementing...[/]")
             impl_data = await self._implementer.implement(
                 task,
                 test_content=test_data["test_content"],
@@ -129,13 +129,13 @@ class TaskExecutor:
                 task.impl_file_paths.append(str(fpath))
             self._sm.save(self._state)
 
-            # Run tests — expect PASS (Green)
+            # Run tests -- expect PASS (Green)
             green_result = await run_command(
                 ["python", "-m", "pytest", str(test_path), "-v", "--tb=short", "--cov"],
                 cwd=self._root,
                 timeout=90,
             )
-            console.print(f"  [green]  Green phase: {'PASSED ✓' if green_result.success else 'FAILED — retrying'}[/]")
+            console.print(f"  [green]  Green phase: {'PASSED OK' if green_result.success else 'FAILED -- retrying'}[/]")
 
             # If still failing, retry once with updated context
             if not green_result.success and task.retry_count < self._config.project.max_retries:
@@ -155,10 +155,10 @@ class TaskExecutor:
                     timeout=90,
                 )
 
-            # ── 5. TDD Refactor ───────────────────────────────────────────
+            # -- 5. TDD Refactor -------------------------------------------
             if green_result.success and task.impl_file_paths:
                 task.current_stage = "tdd_refactor"
-                console.print(f"  [dim]→ TDD Refactor: improving quality...[/]")
+                console.print(f"  [dim]-> TDD Refactor: improving quality...[/]")
                 first_impl = read_file(task.impl_file_paths[0]) if task.impl_file_paths else ""
                 refactor_data = await self._implementer.refactor(
                     task, current_code=first_impl, test_content=test_data["test_content"]
@@ -172,16 +172,16 @@ class TaskExecutor:
                     cwd=self._root, timeout=60,
                 )
                 if not refactor_verify.success:
-                    # Refactor broke tests — revert is complex; just log
-                    console.print("  [red]  Refactor broke tests — skipping refactor[/]")
+                    # Refactor broke tests -- revert is complex; just log
+                    console.print("  [red]  Refactor broke tests -- skipping refactor[/]")
 
-            # ── 6. Analyse verification results ───────────────────────────
+            # -- 6. Analyse verification results ---------------------------
             verification_analysis = await self._verifier.analyse_results(
                 green_result.output, task
             )
             task.verification_passed = verification_analysis.get("passed", green_result.success)
 
-            # ── 7. Implementation Review ──────────────────────────────────
+            # -- 7. Implementation Review ----------------------------------
             task.current_stage = "impl_review"
             impl_content = "\n\n".join(
                 read_file(p) for p in task.impl_file_paths if file_exists(p)
@@ -193,22 +193,22 @@ class TaskExecutor:
             )
             task.review_outcome = impl_review["outcome_enum"]
 
-            # ── 8. Mark Complete or Auto-Decompose on Failure/REPLAN ─────
+            # -- 8. Mark Complete or Auto-Decompose on Failure/REPLAN -----
             if task.verification_passed and task.review_outcome == ReviewOutcome.PASS:
                 task.status = TaskStatus.COMPLETED
                 task.current_stage = "complete"
-                console.print(f"  [bold green]✓ Task complete: {task.title}[/]")
+                console.print(f"  [bold green]OK Task complete: {task.title}[/]")
             elif task.review_outcome in (ReviewOutcome.REPLAN, ReviewOutcome.REVISE) or not task.verification_passed:
-                console.print(f"  [yellow]Task needs replanning — auto-decomposing into smaller subtasks...[/]")
+                console.print(f"  [yellow]Task needs replanning -- auto-decomposing into smaller subtasks...[/]")
                 task = await self._force_decompose(task)
                 if task.status != TaskStatus.BLOCKED:
                     task.status = TaskStatus.FAILED
                     task.current_stage = "failed"
-                    console.print(f"  [red]✗ Task failed: {task.title}[/]")
+                    console.print(f"  [red]FAIL Task failed: {task.title}[/]")
             else:
                 task.status = TaskStatus.FAILED
                 task.current_stage = "failed"
-                console.print(f"  [red]✗ Task failed: {task.title}[/]")
+                console.print(f"  [red]FAIL Task failed: {task.title}[/]")
 
         except Exception as exc:
             failure = FailureRecord(
@@ -218,7 +218,7 @@ class TaskExecutor:
             )
             task.failures.append(failure)
             task.status = TaskStatus.FAILED
-            console.print(f"  [bold red]✗ Exception: {exc}[/]")
+            console.print(f"  [bold red]FAIL Exception: {exc}[/]")
 
         self._sm.save(self._state)
         return task
@@ -231,7 +231,7 @@ class TaskExecutor:
         if task.complexity == "high" or estimated_loc > threshold:
             result = await self._decomposer.decompose(task, threshold)
             if result.get("should_decompose"):
-                console.print(f"  [dim]→ Decomposing into {len(result['subtasks'])} subtasks...[/]")
+                console.print(f"  [dim]-> Decomposing into {len(result['subtasks'])} subtasks...[/]")
                 # Register subtasks in state
                 from uuid import uuid4
                 for sub in result.get("subtasks", []):
@@ -261,7 +261,7 @@ class TaskExecutor:
         result = await self._decomposer.decompose(task, target_loc=max(50, threshold // 2))
         subtasks = result.get("subtasks", [])
         if subtasks:
-            console.print(f"  [yellow]→ Auto-decomposed task '{task.title[:40]}' into {len(subtasks)} subtasks[/]")
+            console.print(f"  [yellow]-> Auto-decomposed task '{task.title[:40]}' into {len(subtasks)} subtasks[/]")
             from uuid import uuid4
             for sub in subtasks:
                 sub_record = TaskRecord(

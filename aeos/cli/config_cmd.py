@@ -1,4 +1,4 @@
-"""aeos config — validate and display resolved configuration."""
+"""aeos config -- validate and display resolved configuration."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def validate_command(
     try:
         cfg = load_config(config_path=config_file)
         found = get_config_path()
-        console.print(f"[green]✓ Config valid[/] — {found}")
+        console.print(f"[green]OK Config valid[/] -- {found}")
         console.print(f"  Providers: {list(cfg.providers.keys())}")
     except FileNotFoundError as e:
         console.print(f"[red]Config not found:[/] {e}")
@@ -59,7 +59,7 @@ def show_command(
     prov_table.add_column("Auth")
 
     for key, prov in cfg.providers.items():
-        endpoint = prov.base_url or prov.project or "—"
+        endpoint = prov.base_url or prov.project or "--"
         auth = prov.api_key_env or ("ADC" if prov.type.value == "vertex_ai" else "none")
         prov_table.add_row(key, prov.type.value, str(endpoint), auth)
     console.print(prov_table)
@@ -75,9 +75,9 @@ def show_command(
     for tt, cplx_map in routing.items():
         route_table.add_row(
             tt,
-            cplx_map.get("high", "—"),
-            cplx_map.get("medium", "—"),
-            cplx_map.get("low", "—"),
+            cplx_map.get("high", "--"),
+            cplx_map.get("medium", "--"),
+            cplx_map.get("low", "--"),
         )
     console.print(route_table)
 

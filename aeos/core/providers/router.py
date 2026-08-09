@@ -1,4 +1,4 @@
-"""Model router — maps (task_type, complexity) → provider + LLM call."""
+"""Model router -- maps (task_type, complexity) -> provider + LLM call."""
 
 from __future__ import annotations
 
@@ -53,29 +53,29 @@ class ModelRouter:
         Resolve the actual max_tokens value to send in the API request.
 
         Priority (highest wins):
-          1. provider.max_tokens  — explicit cap set in config.yaml
-          2. provider.context_window // 2 — derived cap when only context_window
+          1. provider.max_tokens  -- explicit cap set in config.yaml
+          2. provider.context_window // 2 -- derived cap when only context_window
                                              is declared (reserves ~half the window
                                              for the prompt; safe for most models)
-          3. requested            — the caller's value, unchanged
+          3. requested            -- the caller's value, unchanged
 
         Examples
         --------
         context_window=4096, max_tokens unset
-            → effective = min(requested, 4096 // 2) = min(requested, 2048)
+            -> effective = min(requested, 4096 // 2) = min(requested, 2048)
 
         context_window=4096, max_tokens=1500
-            → effective = min(requested, 1500)        (max_tokens wins)
+            -> effective = min(requested, 1500)        (max_tokens wins)
 
         neither set
-            → effective = requested                   (no cap applied)
+            -> effective = requested                   (no cap applied)
         """
         prov_cfg = self._config.providers.get(provider_key)
         if prov_cfg is None:
             return requested
 
         if prov_cfg.max_tokens is not None:
-            # Explicit cap — always respected
+            # Explicit cap -- always respected
             return min(requested, prov_cfg.max_tokens)
 
         if prov_cfg.context_window is not None:

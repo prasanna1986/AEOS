@@ -1,4 +1,4 @@
-"""Artifact store — file-based artifact persistence and retrieval."""
+"""Artifact store -- file-based artifact persistence and retrieval."""
 
 from __future__ import annotations
 

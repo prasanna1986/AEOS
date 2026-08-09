@@ -1,4 +1,4 @@
-"""Decomposer agent — recursively breaks tasks into atomic units with TDD ordering."""
+"""Decomposer agent -- recursively breaks tasks into atomic units with TDD ordering."""
 
 from __future__ import annotations
 

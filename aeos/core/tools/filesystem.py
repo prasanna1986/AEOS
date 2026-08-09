@@ -1,4 +1,4 @@
-"""Filesystem tool — read, write, search, tree."""
+"""Filesystem tool -- read, write, search, tree."""
 
 from __future__ import annotations
 
@@ -100,10 +100,10 @@ def tree(directory: Path | str, max_depth: int = 4, exclude: list[str] | None = 
             return
         children = [c for c in children if not _should_exclude(c.name)]
         for i, child in enumerate(children):
-            connector = "└── " if i == len(children) - 1 else "├── "
+            connector = "?-- " if i == len(children) - 1 else "?-- "
             lines.append(f"{prefix}{connector}{child.name}")
             if child.is_dir():
-                extension = "    " if i == len(children) - 1 else "│   "
+                extension = "    " if i == len(children) - 1 else "?   "
                 _walk(child, prefix + extension, depth + 1)
 
     _walk(root, "", 0)

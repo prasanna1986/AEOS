@@ -1,4 +1,4 @@
-"""Configuration schema — Pydantic models for the full AEOS config."""
+"""Configuration schema -- Pydantic models for the full AEOS config."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # Provider types
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 
 class ProviderType(str, Enum):
     OPENAI = "openai"
@@ -37,10 +37,10 @@ class ProviderConfig(BaseModel):
     models: list[str] = Field(default_factory=list)
     openai_compat: bool | None = None   # None = auto-detect from base_url
 
-    # Token budget — set these to match your local model's context window.
+    # Token budget -- set these to match your local model's context window.
     # AEOS will cap max_tokens to this value automatically.
-    #   context_window: 4096   ← total tokens (prompt + completion)
-    #   max_tokens:     2048   ← hard cap on completion tokens sent to this provider
+    #   context_window: 4096   ? total tokens (prompt + completion)
+    #   max_tokens:     2048   ? hard cap on completion tokens sent to this provider
     context_window: int | None = None   # total context window of the model
     max_tokens: int | None = None       # override the per-request max_tokens cap
 
@@ -57,9 +57,9 @@ class ProviderConfig(BaseModel):
         return self
 
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # Routing
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 
 class Complexity(str, Enum):
     HIGH = "high"
@@ -111,9 +111,9 @@ class RoutingConfig(BaseModel):
         return routing.for_complexity(complexity)
 
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # Project settings
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 
 class ProjectConfig(BaseModel):
     workspace_dir: str = ".aeos"
@@ -130,12 +130,12 @@ class LoggingConfig(BaseModel):
     file: str | None = ".aeos/aeos.log"
 
 
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 # Root config
-# ─────────────────────────────────────────────────────────────
+# -------------------------------------------------------------
 
 class AEOSConfig(BaseModel):
-    """Root configuration model — validated representation of config.yaml."""
+    """Root configuration model -- validated representation of config.yaml."""
 
     providers: dict[str, ProviderConfig] = Field(default_factory=dict)
     routing: RoutingConfig

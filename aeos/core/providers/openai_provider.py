@@ -1,4 +1,4 @@
-"""OpenAI provider — supports OpenAI API and any OpenAI-compatible endpoint."""
+"""OpenAI provider -- supports OpenAI API and any OpenAI-compatible endpoint."""
 
 from __future__ import annotations
 
