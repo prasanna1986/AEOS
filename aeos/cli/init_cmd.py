@@ -94,19 +94,38 @@ def _interactive_setup(config_path: Path) -> None:
     if provider_choice != "skip":
         if provider_choice == "ollama":
             base_url = Prompt.ask("Ollama base URL", default="http://localhost:11434")
-            raw.setdefault("providers", {})["local_ollama"] = {
+            # Detect if this looks like an OpenAI-compat server (LM Studio, vLLM, etc.)
+            is_openai_compat = base_url.rstrip("/") != "http://localhost:11434"
+            if is_openai_compat:
+                console.print(
+                    "  [dim]Non-default URL detected — will use OpenAI-compatible API "
+                    "(LM Studio / vLLM / llama.cpp mode).[/]"
+                )
+            default_model = "mistral" if not is_openai_compat else "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF"
+            model_name = Prompt.ask(
+                "Model name for inference / planning",
+                default=default_model,
+            )
+            coding_model = Prompt.ask(
+                "Model name for coding tasks (press Enter to use same model)",
+                default=model_name,
+            )
+            provider_entry: dict = {
                 "type": "ollama",
                 "base_url": base_url,
-                "models": ["mistral", "codellama:7b"],
+                "models": list({model_name, coding_model}),
             }
-            # Minimal routing
+            if is_openai_compat:
+                provider_entry["openai_compat"] = True
+            raw.setdefault("providers", {})["local_ollama"] = provider_entry
+            # Build routing using chosen models
             raw.setdefault("routing", {
-                "inference": {"high": {"provider": "local_ollama", "model": "mistral"},
-                              "medium": {"provider": "local_ollama", "model": "mistral"},
-                              "low": {"provider": "local_ollama", "model": "mistral"}},
-                "coding": {"high": {"provider": "local_ollama", "model": "codellama:7b"},
-                           "medium": {"provider": "local_ollama", "model": "codellama:7b"},
-                           "low": {"provider": "local_ollama", "model": "codellama:7b"}},
+                "inference": {"high": {"provider": "local_ollama", "model": model_name},
+                              "medium": {"provider": "local_ollama", "model": model_name},
+                              "low": {"provider": "local_ollama", "model": model_name}},
+                "coding": {"high": {"provider": "local_ollama", "model": coding_model},
+                           "medium": {"provider": "local_ollama", "model": coding_model},
+                           "low": {"provider": "local_ollama", "model": coding_model}},
             })
         elif provider_choice == "anthropic":
             env_var = Prompt.ask("API key environment variable", default="ANTHROPIC_API_KEY")

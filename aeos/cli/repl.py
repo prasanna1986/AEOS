@@ -62,6 +62,7 @@ HELP_TEXT = """
   [yellow]/log[/]           Show decision log, lessons, and failure history
   [yellow]/providers[/]     Test connectivity to all configured providers
   [yellow]/config[/]        Show resolved configuration and routing table
+  [yellow]/model[/]         Change the model used for routing (without re-running init)
   [yellow]/reset[/]         Archive current session and start fresh
   [yellow]/resume[/]        Resume the previous session from interruption point
   [yellow]/quit[/] [dim]/ /q[/]    Exit AEOS
@@ -73,7 +74,7 @@ HELP_TEXT = """
   [dim]Example:[/] Refactor the database layer to use async SQLAlchemy
 """
 
-SLASH_COMMANDS = {"/help", "/status", "/log", "/providers", "/config", "/reset", "/resume", "/quit", "/q"}
+SLASH_COMMANDS = {"/help", "/status", "/log", "/providers", "/config", "/model", "/reset", "/resume", "/quit", "/q"}
 
 
 class AEOSRepl:
@@ -182,6 +183,8 @@ class AEOSRepl:
                 self._print_providers()
             case "/config":
                 self._print_config()
+            case "/model":
+                self._cmd_set_model(cmd)
             case "/reset":
                 self._reset_session()
             case "/resume":
@@ -391,7 +394,9 @@ class AEOSRepl:
         if self._config is None:
             console.print("[yellow]No config loaded.[/]")
             return
-        routing = self._config.routing.describe_routing()
+        from aeos.core.providers.router import ModelRouter
+        router = ModelRouter(self._config)
+        routing = router.describe_routing()
         table = Table(title="Model Routing", box=box.SIMPLE)
         table.add_column("Task Type", width=14)
         table.add_column("High")
@@ -400,6 +405,16 @@ class AEOSRepl:
         for tt, cmap in routing.items():
             table.add_row(tt, cmap.get("high","—"), cmap.get("medium","—"), cmap.get("low","—"))
         console.print(table)
+
+        # Also print provider list
+        prov_table = Table(title="Providers", box=box.SIMPLE)
+        prov_table.add_column("Key")
+        prov_table.add_column("Type")
+        prov_table.add_column("Endpoint")
+        for key, prov in self._config.providers.items():
+            endpoint = str(prov.base_url or prov.project or "cloud")
+            prov_table.add_row(key, prov.type.value, endpoint[:50])
+        console.print(prov_table)
 
     def _reset_session(self) -> None:
         if self._sm is None:
@@ -411,3 +426,80 @@ class AEOSRepl:
             console.print("[green]Session archived.[/] Type your next objective to begin.")
         else:
             console.print("[dim]Reset cancelled.[/]")
+
+    def _cmd_set_model(self, cmd: str) -> None:
+        """
+        /model                  — show current routing models
+        /model <name>           — set ALL route targets to <model-name>
+        /model <name> --coding  — set only coding routes
+        """
+        import yaml
+        from aeos.core.config.loader import get_config_path
+
+        if self._config is None:
+            console.print("[yellow]No config loaded.[/]")
+            return
+
+        parts = cmd.strip().split()
+        if len(parts) == 1:  # just /model — show current
+            self._print_config()
+            console.print(
+                "[dim]Usage:[/] [yellow]/model <model-name>[/]  — set all routes\n"
+                "         [yellow]/model <model-name> --coding[/]  — coding routes only\n"
+                "         [yellow]/model <model-name> --inference[/]  — inference routes only"
+            )
+            return
+
+        model_name = parts[1]
+        filter_type = None
+        if "--coding" in parts:
+            filter_type = "coding"
+        elif "--inference" in parts:
+            filter_type = "inference"
+        elif "--planning" in parts:
+            filter_type = "planning"
+        elif "--review" in parts:
+            filter_type = "review"
+        elif "--verification" in parts:
+            filter_type = "verification"
+
+        # Find and update the config file
+        config_path = get_config_path()
+        if config_path is None:
+            console.print("[red]Cannot find config file to update.[/]")
+            return
+
+        with open(config_path, encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+
+        routing = raw.get("routing", {})
+        task_types = [filter_type] if filter_type else list(routing.keys())
+
+        # Find the first provider key to preserve it
+        providers_updated = 0
+        for tt in task_types:
+            if tt not in routing:
+                routing[tt] = {}
+            for cplx in ("high", "medium", "low"):
+                if cplx not in routing[tt]:
+                    routing[tt][cplx] = {}
+                existing_provider = routing[tt][cplx].get("provider", "local_ollama")
+                routing[tt][cplx] = {"provider": existing_provider, "model": model_name}
+                providers_updated += 1
+
+        raw["routing"] = routing
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(raw, f, default_flow_style=False, allow_unicode=True)
+
+        # Reload config
+        from aeos.core.config.loader import load_config
+        try:
+            self._config = load_config(config_path=config_path)
+            scope = filter_type or "all task types"
+            console.print(
+                f"[green]✓[/] Updated [bold]{providers_updated}[/] routes for "
+                f"[cyan]{scope}[/] → model [bold]{model_name}[/]\n"
+                f"[dim]Config saved to {config_path}[/]"
+            )
+        except Exception as e:
+            console.print(f"[red]Config reload failed:[/] {e}")
