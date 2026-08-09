@@ -90,10 +90,17 @@ class OllamaProvider(LLMProvider):
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
             "stream": False,
+            # Stop reasoning-model thinking chains from consuming the full context
+            "stop": ["</think>"],
         }
         async with httpx.AsyncClient(timeout=300) as client:
             resp = await client.post(self._chat_url, json=payload)
-            resp.raise_for_status()
+            if not resp.is_success:
+                raise httpx.HTTPStatusError(
+                    f"{resp.status_code} from {self._chat_url}: {resp.text[:200]}",
+                    request=resp.request,
+                    response=resp,
+                )
             data = resp.json()
         content = data["choices"][0]["message"]["content"]
         return CompletionResponse(

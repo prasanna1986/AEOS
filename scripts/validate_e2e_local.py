@@ -31,8 +31,8 @@ def build_local_config() -> AEOSConfig:
     lm_studio = ProviderConfig(
         type=ProviderType.OLLAMA,
         base_url="http://127.0.0.1:1234",
-        context_window=4096,
-        max_tokens=800,  # conservative: leaves ~3000 tokens for prompt
+        context_window=8192,
+        max_tokens=2048,  # half of context_window -- safe for reasoning models
     )
     local_target = ModelTarget(
         provider="lm_studio",

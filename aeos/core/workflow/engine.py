@@ -436,6 +436,17 @@ class WorkflowEngine:
         console.print(f"  Completion checks: {checks}")
         if all_passed:
             return WorkflowStage.COMPLETE
+
+        # If all tasks are done but non-task checks failed (e.g. integration),
+        # there is nothing more to execute -- mark complete with a warning
+        # rather than looping back to TASK_EXECUTION_ENGINE endlessly.
+        if checks["all_tasks_complete"] and checks["no_pending_questions"]:
+            console.print(
+                "  [yellow]WARNING: Integration check failed but no tasks remain."
+                " Marking complete.[/]"
+            )
+            return WorkflowStage.COMPLETE
+
         return WorkflowStage.TASK_EXECUTION_ENGINE
 
     # ---------------------------------------------------------
