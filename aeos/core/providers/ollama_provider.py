@@ -84,9 +84,26 @@ class OllamaProvider(LLMProvider):
 
     async def _complete_openai_compat(self, request: CompletionRequest) -> CompletionResponse:
         """OpenAI-compatible /v1/chat/completions call (LM Studio, vLLM, etc.)."""
+        # Merge system messages into the first user message to support models
+        # (like Mistral Instruct) that only accept "user" and "assistant" roles.
+        system_content = ""
+        messages_payload = []
+        for m in request.messages:
+            if m.role == "system":
+                system_content += m.content + "\n\n"
+            else:
+                messages_payload.append({"role": m.role, "content": m.content})
+
+        if system_content:
+            user_idx = next((i for i, msg in enumerate(messages_payload) if msg["role"] == "user"), -1)
+            if user_idx != -1:
+                messages_payload[user_idx]["content"] = system_content + messages_payload[user_idx]["content"]
+            else:
+                messages_payload.insert(0, {"role": "user", "content": system_content.strip()})
+
         payload = {
             "model": request.model,
-            "messages": [{"role": m.role, "content": m.content} for m in request.messages],
+            "messages": messages_payload,
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
             "stream": False,

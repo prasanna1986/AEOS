@@ -36,7 +36,7 @@ def build_local_config() -> AEOSConfig:
     )
     local_target = ModelTarget(
         provider="lm_studio",
-        model="deepseek/deepseek-r1-0528-qwen3-8b",
+        model="mistralai/mistral-7b-instruct-v0.3",
     )
     all_local = ComplexityRouting(high=local_target, medium=local_target, low=local_target)
     routing = RoutingConfig(
