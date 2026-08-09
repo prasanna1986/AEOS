@@ -216,6 +216,17 @@ class WorkflowEngine:
             "issues": issues,
         }
 
+        # Collect questions for user if reviewer generated any
+        user_qs = review.get("questions_for_user", [])
+        if user_qs and self._config.project.ask_on_critical:
+            for q in user_qs:
+                if isinstance(q, str) and q.strip():
+                    self._state.pending_questions.append({
+                        "question": q.strip(),
+                        "component": stage.value,
+                    })
+            self._sm.save(self._state)
+
         if outcome == ReviewOutcome.PASS:
             self._stage_retries[stage.value] = 0
             console.print(f"  {stage.value} review: [bold green]PASS[/] — {summary}")
